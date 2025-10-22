@@ -10,3 +10,38 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.bak
+*~
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.iml
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build artifacts
+dist/
+out/
+*.hap
+*.app
+
+# Database files
+*.db
+*.sqlite
+*.db-journal

@@ -53,16 +53,16 @@ Phase 8: Polish (最后)
 
 ### 任务列表
 
-- [ ] T001 创建 HarmonyOS 项目结构在 DevEco Studio
-- [ ] T002 配置 oh-package.json5 添加依赖：math.js, @ohos/hypium
-- [ ] T003 创建目录结构：entry/src/main/ets/{pages,components,modules,models,utils,workers}
-- [ ] T004 [P] 配置环境变量文件 entry/src/main/resources/rawfile/config.json
-- [ ] T005 [P] 创建全局常量文件 entry/src/main/ets/utils/Constants.ts
-- [ ] T006 [P] 创建日志工具 entry/src/main/ets/utils/Logger.ts
-- [ ] T007 配置 build-profile.json5 构建参数
-- [ ] T008 配置 module.json5 应用权限和元数据
-- [ ] T009 创建欢迎页面 entry/src/main/ets/pages/Index.ets
-- [ ] T010 运行应用验证基础配置
+- [x] T001 创建 HarmonyOS 项目结构在 DevEco Studio
+- [x] T002 配置 oh-package.json5 添加依赖：math.js, @ohos/hypium
+- [x] T003 创建目录结构：entry/src/main/ets/{pages,components,modules,models,utils,workers}
+- [x] T004 [P] 配置环境变量文件 entry/src/main/resources/rawfile/config.json
+- [x] T005 [P] 创建全局常量文件 entry/src/main/ets/utils/Constants.ts
+- [x] T006 [P] 创建日志工具 entry/src/main/ets/utils/Logger.ts
+- [x] T007 配置 build-profile.json5 构建参数
+- [x] T008 配置 module.json5 应用权限和元数据
+- [x] T009 创建欢迎页面 entry/src/main/ets/pages/Index.ets
+- [x] T010 运行应用验证基础配置
 
 **完成标准：** 项目成功运行，显示欢迎页面
 
@@ -79,18 +79,18 @@ Phase 8: Polish (最后)
 
 ### 数据层基础
 
-- [ ] T011 创建数据库管理器 entry/src/main/ets/modules/DatabaseManager.ts
-- [ ] T012 实现数据库初始化和表创建（formulas, history_records, graph_records, user_settings）
-- [ ] T013 创建 Formula 模型 entry/src/main/ets/models/Formula.ts
-- [ ] T014 [P] 创建 HistoryRecord 模型 entry/src/main/ets/models/HistoryRecord.ts
+- [x] T011 创建数据库管理器 entry/src/main/ets/modules/DatabaseManager.ts
+- [x] T012 实现数据库初始化和表创建（formulas, history_records, graph_records, user_settings）
+- [x] T013 创建 Formula 模型 entry/src/main/ets/models/Formula.ts
+- [x] T014 [P] 创建 HistoryRecord 模型 entry/src/main/ets/models/HistoryRecord.ts
 - [ ] T015 [P] 创建 GraphRecord 模型 entry/src/main/ets/models/GraphRecord.ts
 - [ ] T016 [P] 创建 UserSettings 模型 entry/src/main/ets/models/UserSettings.ts
-- [ ] T017 创建 DataManager 基础类 entry/src/main/ets/modules/DataManager.ts
-- [ ] T018 实现 DataManager.saveFormula() 方法
-- [ ] T019 [P] 实现 DataManager.getFormulas() 方法
-- [ ] T020 [P] 实现 DataManager.deleteFormula() 方法
-- [ ] T021 [P] 实现 DataManager.saveHistory() 方法
-- [ ] T022 [P] 实现 DataManager.getHistory() 方法
+- [x] T017 创建 DataManager 基础类 entry/src/main/ets/modules/DataManager.ts
+- [x] T018 实现 DataManager.saveFormula() 方法
+- [x] T019 [P] 实现 DataManager.getFormulas() 方法
+- [x] T020 [P] 实现 DataManager.deleteFormula() 方法
+- [x] T021 [P] 实现 DataManager.saveHistory() 方法
+- [x] T022 [P] 实现 DataManager.getHistory() 方法
 - [ ] T023 [P] 实现 DataManager.saveSettings() 方法
 - [ ] T024 [P] 实现 DataManager.getSettings() 方法
 
@@ -127,40 +127,40 @@ Phase 8: Polish (最后)
 
 ### 数学引擎（US1）
 
-- [ ] T033 [US1] 安装 math.js 依赖并配置高精度模式
-- [ ] T034 [US1] 创建 ExpressionEngine 类 entry/src/main/ets/modules/ExpressionEngine.ts
-- [ ] T035 [US1] 实现 ExpressionEngine.evaluate() 方法（基础四则运算）
-- [ ] T036 [US1] 实现高精度计算配置（100 位精度）
-- [ ] T037 [US1] 实现表达式验证和错误处理
-- [ ] T038 [US1] 实现科学计数法显示格式化
+- [x] T033 [US1] 安装 math.js 依赖并配置高精度模式
+- [x] T034 [US1] 创建 ExpressionEngine 类 entry/src/main/ets/modules/ExpressionEngine.ts
+- [x] T035 [US1] 实现 ExpressionEngine.evaluate() 方法（基础四则运算）
+- [x] T036 [US1] 实现高精度计算配置（100 位精度）
+- [x] T037 [US1] 实现表达式验证和错误处理
+- [x] T038 [US1] 实现科学计数法显示格式化
 - [ ] T039 [US1] 实现 Worker 后台计算 entry/src/main/ets/workers/CalcWorker.ts
 - [ ] T040 [P] [US1] 编写单元测试 entry/src/ohosTest/ets/test/ExpressionEngine.test.ets
 
 ### 计算器 UI（US1）
 
-- [ ] T041 [US1] 创建 CalculatorPage 页面 entry/src/main/ets/pages/CalculatorPage.ets
-- [ ] T042 [US1] 创建计算器按钮组件 entry/src/main/ets/components/CalculatorButton.ets
-- [ ] T043 [US1] 创建显示区域组件 entry/src/main/ets/components/DisplayArea.ets
-- [ ] T044 [US1] 实现 Pocket 布局模式（小屏设备，基础按键）
-- [ ] T045 [P] [US1] 实现 Compact 布局模式（手机竖屏/横屏，更多按键）
+- [x] T041 [US1] 创建 CalculatorPage 页面 entry/src/main/ets/pages/CalculatorPage.ets
+- [x] T042 [US1] 创建计算器按钮组件 entry/src/main/ets/components/CalculatorButton.ets
+- [x] T043 [US1] 创建显示区域组件 entry/src/main/ets/components/DisplayArea.ets
+- [x] T044 [US1] 实现 Pocket 布局模式（小屏设备，基础按键）
+- [x] T045 [P] [US1] 实现 Compact 布局模式（手机竖屏/横屏，更多按键）
 - [ ] T046 [P] [US1] 实现 Expanded 布局模式（平板大屏，分栏布局）
-- [ ] T047 [US1] 实现按钮点击事件处理和表达式拼接
-- [ ] T048 [US1] 实现表达式实时验证和错误高亮
-- [ ] T049 [US1] 实现等号按钮触发计算
-- [ ] T050 [US1] 实现计算结果显示和格式化
-- [ ] T051 [US1] 实现清除（C）和删除（DEL）按钮
+- [x] T047 [US1] 实现按钮点击事件处理和表达式拼接
+- [x] T048 [US1] 实现表达式实时验证和错误高亮
+- [x] T049 [US1] 实现等号按钮触发计算
+- [x] T050 [US1] 实现计算结果显示和格式化
+- [x] T051 [US1] 实现清除（C）和删除（DEL）按钮
 - [ ] T052 [US1] 实现主题切换按钮和逻辑
 
 ### 历史记录（US1）
 
-- [ ] T053 [US1] 创建 HistoryPage 页面 entry/src/main/ets/pages/HistoryPage.ets
-- [ ] T054 [US1] 创建历史记录列表项组件 entry/src/main/ets/components/HistoryListItem.ets
-- [ ] T055 [US1] 实现历史记录自动保存（计算完成后）
-- [ ] T056 [US1] 实现历史记录列表显示（虚拟滚动优化）
+- [x] T053 [US1] 创建 HistoryPage 页面 entry/src/main/ets/pages/HistoryPage.ets
+- [x] T054 [US1] 创建历史记录列表项组件 entry/src/main/ets/components/HistoryListItem.ets
+- [x] T055 [US1] 实现历史记录自动保存（计算完成后）
+- [x] T056 [US1] 实现历史记录列表显示（虚拟滚动优化）
 - [ ] T057 [US1] 实现点击历史记录重新加载到计算器
 - [ ] T058 [P] [US1] 实现历史记录搜索和筛选
 - [ ] T059 [P] [US1] 实现历史记录删除（单条和批量）
-- [ ] T060 [US1] 实现历史记录清空功能
+- [x] T060 [US1] 实现历史记录清空功能
 
 ### 集成测试（US1）
 

@@ -1,0 +1,26 @@
+{
+  "app": {
+    "name": "SmartCalc",
+    "version": "1.0.0",
+    "env": "development"
+  },
+  "database": {
+    "name": "SmartCalc.db",
+    "version": 1
+  },
+  "supabase": {
+    "url": "",
+    "anonKey": "",
+    "enabled": false
+  },
+  "calculation": {
+    "precision": 100,
+    "defaultAngleUnit": "degree",
+    "maxHistoryRecords": 1000
+  },
+  "ui": {
+    "defaultTheme": "light",
+    "defaultLayout": "compact"
+  }
+}
+

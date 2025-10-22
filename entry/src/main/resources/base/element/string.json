@@ -2,15 +2,51 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "module description"
+      "value": "智能计算器 SmartCalc - 专业级数学工具应用"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "description"
+      "value": "SmartCalc 应用入口"
     },
     {
       "name": "EntryAbility_label",
-      "value": "label"
+      "value": "智能计算器"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "用于云端数据同步和更新检查"
+    },
+    {
+      "name": "permission_network_info_reason",
+      "value": "用于检测网络状态，实现离线/在线模式切换"
+    },
+    {
+      "name": "app_name",
+      "value": "智能计算器"
+    },
+    {
+      "name": "welcome_message",
+      "value": "欢迎使用 SmartCalc"
+    },
+    {
+      "name": "loading",
+      "value": "正在加载..."
+    },
+    {
+      "name": "error_title",
+      "value": "错误"
+    },
+    {
+      "name": "success_title",
+      "value": "成功"
+    },
+    {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "confirm",
+      "value": "确认"
     }
   ]
 }
