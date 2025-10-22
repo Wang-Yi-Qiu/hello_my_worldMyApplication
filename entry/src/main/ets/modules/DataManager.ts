@@ -110,7 +110,10 @@ export class DataManager {
       predicates.orderByDesc('updated_at');
 
       if (query?.limit) {
-        predicates.limit(query.limit, query?.offset || 0);
+        predicates.limitAs(query.limit);
+        if (query?.offset) {
+          predicates.offsetAs(query.offset);
+        }
       }
 
       const resultSet = await store.query(predicates);
@@ -222,7 +225,10 @@ export class DataManager {
       predicates.orderByDesc('created_at');
 
       if (query?.limit) {
-        predicates.limit(query.limit, query?.offset || 0);
+        predicates.limitAs(query.limit);
+        if (query?.offset) {
+          predicates.offsetAs(query.offset);
+        }
       }
 
       const resultSet = await store.query(predicates);
@@ -252,6 +258,48 @@ export class DataManager {
     } catch (error) {
       Logger.error('Get history error', error);
       return { success: false, error: '获取历史失败' };
+    }
+  }
+
+  /**
+   * 删除单个历史记录
+   */
+  async deleteHistory(id: number): Promise<SaveResult> {
+    try {
+      const store = this.db.getStore();
+      const predicates = new relationalStore.RdbPredicates('history_records');
+      predicates.equalTo('id', id);
+      
+      await store.delete(predicates);
+      Logger.info(`History deleted: ${id}`);
+      
+      return { success: true };
+    } catch (error) {
+      Logger.error('Delete history error', error);
+      return { success: false, error: '删除历史失败' };
+    }
+  }
+
+  /**
+   * 批量删除历史记录
+   */
+  async deleteHistoryBatch(ids: number[]): Promise<SaveResult> {
+    try {
+      if (ids.length === 0) {
+        return { success: true };
+      }
+
+      const store = this.db.getStore();
+      const predicates = new relationalStore.RdbPredicates('history_records');
+      predicates.in('id', ids.map(id => id.toString()));
+      
+      await store.delete(predicates);
+      Logger.info(`Batch deleted ${ids.length} history records`);
+      
+      return { success: true };
+    } catch (error) {
+      Logger.error('Batch delete history error', error);
+      return { success: false, error: '批量删除历史失败' };
     }
   }
 

@@ -91,19 +91,123 @@ export class ExpressionEngine {
    * 注意：这是简化版本，生产环境应使用 math.js
    */
   private safeEval(expression: string): number {
-    // 移除不安全的字符
-    const sanitized = expression
-      .replace(/[^0-9+\-*\/().]/g, '')
-      .replace(/\s/g, '');
+    // 移除空格
+    let sanitized = expression.replace(/\s/g, '');
+    
+    // 替换数学函数为 JavaScript Math 函数
+    sanitized = this.replaceMathFunctions(sanitized);
+    
+    // 验证表达式只包含安全字符
+    if (!/^[0-9+\-*\/.()A-Za-z,]+$/.test(sanitized)) {
+      throw new Error(ERROR_MESSAGES.INVALID_EXPRESSION);
+    }
 
     // 基础运算符支持
     try {
-      // 使用 Function 构造器比 eval 更安全
-      const result = new Function(`'use strict'; return (${sanitized})`)();
-      return Number(result);
+      // 使用 Function 构造函数安全地求值
+      const func = new Function('return ' + sanitized);
+      const result = func();
+      return result;
     } catch (error) {
+      Logger.error('safeEval error', error);
       throw new Error(ERROR_MESSAGES.INVALID_EXPRESSION);
     }
+  }
+  
+  /**
+   * 替换数学函数为 JavaScript Math 对象函数
+   */
+  private replaceMathFunctions(expr: string): string {
+    const mathFunctions = [
+      'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
+      'sinh', 'cosh', 'tanh',
+      'exp', 'log', 'log10', 'log2',
+      'sqrt', 'abs', 'ceil', 'floor', 'round',
+      'pow', 'min', 'max'
+    ];
+    
+    let result = expr;
+    
+    // 替换数学常数
+    result = result.replace(/\bpi\b/g, 'Math.PI');
+    result = result.replace(/\be\b/g, 'Math.E');
+    
+    // 替换数学函数
+    mathFunctions.forEach(func => {
+      const regex = new RegExp(`\\b${func}\\(`, 'g');
+      result = result.replace(regex, `Math.${func}(`);
+    });
+    
+    return result;
+  }
+
+  /**
+   * 简单的表达式解析器（支持 +, -, *, /, 括号）
+   */
+  private parseExpression(expr: string): number {
+    let pos = 0;
+
+    const parseNumber = (): number => {
+      let num = '';
+      while (pos < expr.length && (expr[pos].match(/[0-9.]/) !== null)) {
+        num += expr[pos];
+        pos++;
+      }
+      return parseFloat(num);
+    };
+
+    const parseFactor = (): number => {
+      if (expr[pos] === '(') {
+        pos++; // skip '('
+        const result = parseAddSub();
+        pos++; // skip ')'
+        return result;
+      }
+      if (expr[pos] === '-') {
+        pos++;
+        return -parseFactor();
+      }
+      if (expr[pos] === '+') {
+        pos++;
+        return parseFactor();
+      }
+      return parseNumber();
+    };
+
+    const parseMulDiv = (): number => {
+      let result = parseFactor();
+      while (pos < expr.length && (expr[pos] === '*' || expr[pos] === '/')) {
+        const op = expr[pos];
+        pos++;
+        const right = parseFactor();
+        if (op === '*') {
+          result *= right;
+        } else {
+          if (right === 0) {
+            throw new Error(ERROR_MESSAGES.DIVISION_BY_ZERO);
+          }
+          result /= right;
+        }
+      }
+      return result;
+    };
+
+    const parseAddSub = (): number => {
+      let result = parseMulDiv();
+      while (pos < expr.length && (expr[pos] === '+' || expr[pos] === '-')) {
+        const op = expr[pos];
+        pos++;
+        const right = parseMulDiv();
+        if (op === '+') {
+          result += right;
+        } else {
+          result -= right;
+        }
+      }
+      return result;
+    };
+
+    return parseAddSub();
   }
 
   /**

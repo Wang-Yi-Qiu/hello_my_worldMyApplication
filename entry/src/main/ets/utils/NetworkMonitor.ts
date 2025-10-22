@@ -43,16 +43,8 @@ export class NetworkMonitor {
       // 获取当前网络状态
       await this.checkNetworkState();
       
-      // 注册网络状态变化监听
-      connection.on('netAvailable', () => {
-        Logger.info('Network available');
-        this.updateState(NetworkState.ONLINE);
-      });
-      
-      connection.on('netUnavailable', () => {
-        Logger.info('Network unavailable');
-        this.updateState(NetworkState.OFFLINE);
-      });
+      // TODO: 在新版本的HarmonyOS API中,网络监听方式可能需要更新
+      // 暂时只获取一次网络状态,不进行持续监听
       
       Logger.info('Network monitor initialized');
     } catch (error) {

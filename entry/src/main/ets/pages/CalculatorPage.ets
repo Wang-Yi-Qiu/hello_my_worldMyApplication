@@ -97,15 +97,16 @@ export struct CalculatorPage {
     Column() {
       // 显示区域
       Column() {
-        // 表达式显示
+        // 表达式显示（计算式子）
         Text(this.expression || '0')
-          .fontSize(24)
-          .fontColor('#666')
+          .fontSize(20)
+          .fontColor('#999')
           .width('100%')
           .textAlign(TextAlign.End)
-          .margin({ bottom: 10 })
-          .maxLines(2)
+          .margin({ top: 20, bottom: 15 })
+          .maxLines(3)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .minHeight(60)
         
         // 结果显示
         Text(this.result)
@@ -114,11 +115,13 @@ export struct CalculatorPage {
           .fontColor(this.isError ? '#ff4d4f' : '#000')
           .width('100%')
           .textAlign(TextAlign.End)
+          .margin({ bottom: 10 })
       }
       .width('100%')
-      .padding(20)
+      .padding({ left: 20, right: 20, bottom: 20 })
       .height('30%')
-      .justifyContent(FlexAlign.End)
+      .justifyContent(FlexAlign.Start)
+      .alignItems(HorizontalAlign.End)
       .backgroundColor('#f5f5f5')
 
       // 按钮区域

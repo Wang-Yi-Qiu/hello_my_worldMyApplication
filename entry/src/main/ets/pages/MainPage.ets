@@ -3,6 +3,7 @@
  * 包含 TabBar 导航的主界面
  */
 import { Logger } from '../utils/Logger';
+import { ThemeManager } from '../utils/ThemeManager';
 import { CalculatorPage } from './CalculatorPage';
 import { HistoryPage } from './HistoryPage';
 import { AdvancedMathPage } from './AdvancedMathPage';
@@ -13,9 +14,13 @@ import { SettingsPage } from './SettingsPage';
 @Component
 struct MainPage {
   @State currentIndex: number = 0;
+  @StorageLink('currentTheme') currentTheme: string = 'light';
+  private themeManager: ThemeManager = ThemeManager.getInstance();
 
   aboutToAppear() {
     Logger.info('MainPage loaded');
+    // 初始化主题
+    AppStorage.setOrCreate('currentTheme', this.themeManager.getCurrentTheme());
   }
 
   build() {
@@ -25,12 +30,12 @@ struct MainPage {
         Text('智能计算器')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#000')
+          .fontColor(this.currentTheme === 'dark' ? '#fff' : '#000')
       }
       .width('100%')
       .height(56)
       .padding({ left: 20, right: 20 })
-      .backgroundColor('#fff')
+      .backgroundColor(this.currentTheme === 'dark' ? '#1f1f1f' : '#fff')
       .justifyContent(FlexAlign.Start)
 
       // 内容区域
@@ -70,7 +75,7 @@ struct MainPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#f5f5f5')
+    .backgroundColor(this.currentTheme === 'dark' ? '#141414' : '#f5f5f5')
   }
 
   /**

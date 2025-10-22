@@ -11,10 +11,19 @@ import promptAction from '@ohos.promptAction';
 export struct HistoryPage {
   @State historyList: HistoryRecordModel[] = [];
   @State isLoading: boolean = true;
+  @State refreshing: boolean = false;
+  @State isEditMode: boolean = false;
+  @State selectedIds: Set<number> = new Set();
   private dataManager: DataManager = new DataManager();
 
   aboutToAppear() {
     Logger.info('HistoryPage loaded');
+    this.loadHistory();
+  }
+  
+  onPageShow() {
+    // 页面显示时刷新历史记录
+    Logger.info('HistoryPage shown, refreshing...');
     this.loadHistory();
   }
 
@@ -43,12 +52,72 @@ export struct HistoryPage {
   }
 
   /**
+   * 删除单个历史记录
+   */
+  async deleteHistory(id: number) {
+    try {
+      const result = await this.dataManager.deleteHistory(id);
+      if (result.success) {
+        this.historyList = this.historyList.filter(item => item.id !== id);
+        promptAction.showToast({
+          message: '已删除'
+        });
+      } else {
+        promptAction.showToast({
+          message: result.error || '删除失败'
+        });
+      }
+    } catch (error) {
+      Logger.error('Failed to delete history', error);
+      promptAction.showToast({
+        message: '删除失败'
+      });
+    }
+  }
+
+  /**
+   * 批量删除历史记录
+   */
+  async deleteSelectedHistory() {
+    try {
+      const ids = Array.from(this.selectedIds);
+      if (ids.length === 0) {
+        promptAction.showToast({
+          message: '请先选择要删除的记录'
+        });
+        return;
+      }
+
+      const result = await this.dataManager.deleteHistoryBatch(ids);
+      if (result.success) {
+        this.historyList = this.historyList.filter(item => !this.selectedIds.has(item.id!));
+        this.selectedIds.clear();
+        this.isEditMode = false;
+        promptAction.showToast({
+          message: `已删除 ${ids.length} 条记录`
+        });
+      } else {
+        promptAction.showToast({
+          message: result.error || '批量删除失败'
+        });
+      }
+    } catch (error) {
+      Logger.error('Failed to batch delete history', error);
+      promptAction.showToast({
+        message: '批量删除失败'
+      });
+    }
+  }
+
+  /**
    * 清空历史
    */
   async clearHistory() {
     try {
       await this.dataManager.clearHistory();
       this.historyList = [];
+      this.selectedIds.clear();
+      this.isEditMode = false;
       promptAction.showToast({
         message: '历史已清空'
       });
@@ -60,23 +129,115 @@ export struct HistoryPage {
     }
   }
 
+  /**
+   * 切换编辑模式
+   */
+  toggleEditMode() {
+    this.isEditMode = !this.isEditMode;
+    if (!this.isEditMode) {
+      this.selectedIds.clear();
+    }
+  }
+
+  /**
+   * 切换选中状态
+   */
+  toggleSelection(id: number) {
+    if (this.selectedIds.has(id)) {
+      this.selectedIds.delete(id);
+    } else {
+      this.selectedIds.add(id);
+    }
+    // 触发状态更新
+    this.selectedIds = new Set(this.selectedIds);
+  }
+
+  /**
+   * 全选/取消全选
+   */
+  toggleSelectAll() {
+    if (this.selectedIds.size === this.historyList.length) {
+      this.selectedIds.clear();
+    } else {
+      this.selectedIds = new Set(this.historyList.map(item => item.id!).filter(id => id !== undefined));
+    }
+  }
+
   build() {
     Column() {
       // 顶部操作栏
       Row() {
-        Text(`共 ${this.historyList.length} 条`)
-          .fontSize(14)
-          .fontColor('#666')
-        
-        Blank()
-        
-        Button('清空')
-          .fontSize(14)
-          .fontColor('#ff4d4f')
-          .backgroundColor(Color.Transparent)
-          .onClick(() => {
-            this.clearHistory();
+        if (this.isEditMode) {
+          // 编辑模式
+          Checkbox({
+            name: 'selectAll',
+            group: 'historyGroup'
           })
+            .select(this.selectedIds.size === this.historyList.length && this.historyList.length > 0)
+            .onChange((value: boolean) => {
+              this.toggleSelectAll();
+            })
+          
+          Text(`已选 ${this.selectedIds.size}/${this.historyList.length}`)
+            .fontSize(14)
+            .fontColor('#333')
+            .margin({ left: 8 })
+          
+          Blank()
+          
+          Button('取消')
+            .fontSize(14)
+            .fontColor('#666')
+            .backgroundColor(Color.Transparent)
+            .onClick(() => {
+              this.toggleEditMode();
+            })
+            .margin({ right: 10 })
+          
+          Button('删除')
+            .fontSize(14)
+            .fontColor('#ff4d4f')
+            .backgroundColor(Color.Transparent)
+            .enabled(this.selectedIds.size > 0)
+            .onClick(() => {
+              this.deleteSelectedHistory();
+            })
+        } else {
+          // 正常模式
+          Text(`共 ${this.historyList.length} 条`)
+            .fontSize(14)
+            .fontColor('#666')
+          
+          Blank()
+          
+          if (this.historyList.length > 0) {
+            Button('编辑')
+              .fontSize(14)
+              .fontColor('#1890ff')
+              .backgroundColor(Color.Transparent)
+              .onClick(() => {
+                this.toggleEditMode();
+              })
+              .margin({ right: 10 })
+          }
+          
+          Button('刷新')
+            .fontSize(14)
+            .fontColor('#1890ff')
+            .backgroundColor(Color.Transparent)
+            .onClick(() => {
+              this.loadHistory();
+            })
+            .margin({ right: 10 })
+          
+          Button('清空')
+            .fontSize(14)
+            .fontColor('#ff4d4f')
+            .backgroundColor(Color.Transparent)
+            .onClick(() => {
+              this.clearHistory();
+            })
+        }
       }
       .width('100%')
       .padding(15)
@@ -124,6 +285,9 @@ export struct HistoryPage {
             ListItem() {
               this.buildHistoryItem(item, index);
             }
+            .swipeAction({
+              end: this.buildSwipeDelete(item)
+            })
           }, (item: HistoryRecordModel) => item.id?.toString() || item.createdAt)
         }
         .layoutWeight(1)
@@ -144,6 +308,19 @@ export struct HistoryPage {
   @Builder buildHistoryItem(item: HistoryRecordModel, index: number) {
     Column() {
       Row() {
+        // 编辑模式下显示复选框
+        if (this.isEditMode) {
+          Checkbox({
+            name: `item_${item.id}`,
+            group: 'historyGroup'
+          })
+            .select(this.selectedIds.has(item.id!))
+            .onChange((value: boolean) => {
+              this.toggleSelection(item.id!);
+            })
+            .margin({ right: 12 })
+        }
+        
         Column() {
           // 表达式
           Text(item.expression)
@@ -179,12 +356,35 @@ export struct HistoryPage {
     }
     .width('100%')
     .onClick(() => {
-      Logger.info(`History item clicked: ${item.expression}`);
-      promptAction.showToast({
-        message: '已复制到剪贴板'
-      });
-      // TODO: 复制到剪贴板功能
+      if (this.isEditMode) {
+        // 编辑模式下点击切换选中状态
+        this.toggleSelection(item.id!);
+      } else {
+        // 正常模式下点击复制
+        Logger.info(`History item clicked: ${item.expression}`);
+        promptAction.showToast({
+          message: '已复制到剪贴板'
+        });
+        // TODO: 复制到剪贴板功能
+      }
     })
+  }
+
+  /**
+   * 构建滑动删除按钮
+   */
+  @Builder buildSwipeDelete(item: HistoryRecordModel) {
+    Button('删除')
+      .fontSize(14)
+      .fontColor('#fff')
+      .backgroundColor('#ff4d4f')
+      .width(80)
+      .height('100%')
+      .onClick(() => {
+        if (item.id !== undefined) {
+          this.deleteHistory(item.id);
+        }
+      })
   }
 
   /**

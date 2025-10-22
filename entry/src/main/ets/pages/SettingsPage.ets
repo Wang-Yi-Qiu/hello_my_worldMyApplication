@@ -3,6 +3,7 @@
  * 包含主题、布局、精度等设置
  */
 import { Logger } from '../utils/Logger';
+import { ThemeManager } from '../utils/ThemeManager';
 import { NetworkMonitor, NetworkState } from '../utils/NetworkMonitor';
 import { OfflineManager, OfflineStatus } from '../modules/OfflineManager';
 import { APP_NAME, APP_VERSION } from '../utils/Constants';
@@ -10,7 +11,7 @@ import promptAction from '@ohos.promptAction';
 
 @Component
 export struct SettingsPage {
-  @State theme: string = 'light';
+  @StorageLink('currentTheme') currentTheme: string = 'light';
   @State layoutMode: string = 'compact';
   @State precision: number = 10;
   @State angleUnit: string = 'degree';
@@ -21,6 +22,7 @@ export struct SettingsPage {
     pendingSyncTasks: 0
   };
   
+  private themeManager: ThemeManager = ThemeManager.getInstance();
   private networkMonitor: NetworkMonitor = NetworkMonitor.getInstance();
   private offlineManager: OfflineManager = OfflineManager.getInstance();
   
@@ -362,11 +364,11 @@ export struct SettingsPage {
   @Builder buildThemeOption(label: string, value: string) {
     Text(label)
       .fontSize(14)
-      .fontColor(this.theme === value ? '#1890ff' : '#666')
-      .fontWeight(this.theme === value ? FontWeight.Bold : FontWeight.Normal)
+      .fontColor(this.currentTheme === value ? '#1890ff' : '#666')
+      .fontWeight(this.currentTheme === value ? FontWeight.Bold : FontWeight.Normal)
       .padding({ left: 10, right: 10 })
-      .onClick(() => {
-        this.theme = value;
+      .onClick(async () => {
+        await this.themeManager.setTheme(value as 'light' | 'dark');
         Logger.info(`Theme changed to: ${value}`);
         promptAction.showToast({
           message: `已切换到${label}主题`

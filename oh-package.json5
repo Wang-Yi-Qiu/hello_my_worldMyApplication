@@ -3,9 +3,7 @@
   "name": "smartcalc",
   "version": "1.0.0",
   "description": "智能计算器 SmartCalc - 专业级数学工具应用",
-  "dependencies": {
-    "mathjs": "^11.11.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@ohos/hypium": "1.0.24",
     "@ohos/hamock": "1.0.0"

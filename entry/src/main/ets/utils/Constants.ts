@@ -11,7 +11,7 @@ export const DB_NAME = 'SmartCalc.db';
 export const DB_VERSION = 1;
 
 // 计算配置
-export const DEFAULT_PRECISION = 100;
+export const DEFAULT_PRECISION = 10;
 export const DEFAULT_ANGLE_UNIT = 'degree';
 export const MAX_HISTORY_RECORDS = 1000;
 
