@@ -2,7 +2,7 @@
  * 数据库管理器
  * 负责 SQLite 数据库的初始化和管理
  */
-import relationalStore from '@ohos.data.relationalStore';
+import { relationalStore } from '@kit.ArkData';
 import { Logger } from '../utils/Logger';
 import { DB_NAME, DB_VERSION } from '../utils/Constants';
 
@@ -93,10 +93,33 @@ export class DatabaseManager {
           calc_type TEXT DEFAULT 'basic',
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           sync_state INTEGER DEFAULT 0,
-          cloud_id TEXT
+          cloud_id TEXT,
+          is_favorite INTEGER DEFAULT 0,
+          category TEXT DEFAULT 'basic'
         )
       `);
       Logger.info('Table history_records created');
+
+      // 尝试添加新列（如果表已存在）
+      try {
+        await this.store.executeSql(`
+          ALTER TABLE history_records ADD COLUMN is_favorite INTEGER DEFAULT 0
+        `);
+        Logger.info('Column is_favorite added to history_records');
+      } catch (error) {
+        // 列可能已存在，忽略错误
+        Logger.debug('Column is_favorite may already exist');
+      }
+
+      try {
+        await this.store.executeSql(`
+          ALTER TABLE history_records ADD COLUMN category TEXT DEFAULT 'basic'
+        `);
+        Logger.info('Column category added to history_records');
+      } catch (error) {
+        // 列可能已存在，忽略错误
+        Logger.debug('Column category may already exist');
+      }
 
       await this.store.executeSql(`
         CREATE INDEX IF NOT EXISTS idx_history_user ON history_records(user_id)
@@ -106,6 +129,12 @@ export class DatabaseManager {
       `);
       await this.store.executeSql(`
         CREATE INDEX IF NOT EXISTS idx_history_type ON history_records(calc_type)
+      `);
+      await this.store.executeSql(`
+        CREATE INDEX IF NOT EXISTS idx_history_favorite ON history_records(is_favorite)
+      `);
+      await this.store.executeSql(`
+        CREATE INDEX IF NOT EXISTS idx_history_category ON history_records(category)
       `);
 
       // 创建图像记录表

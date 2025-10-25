@@ -21,6 +21,18 @@
       "value": "用于检测网络状态，实现离线/在线模式切换"
     },
     {
+      "name": "permission_read_media_reason",
+      "value": "用于读取相册图片进行公式识别"
+    },
+    {
+      "name": "permission_write_media_reason",
+      "value": "用于保存识别结果和处理后的图片"
+    },
+    {
+      "name": "permission_camera_reason",
+      "value": "用于拍照识别数学公式"
+    },
+    {
       "name": "app_name",
       "value": "智能计算器"
     },

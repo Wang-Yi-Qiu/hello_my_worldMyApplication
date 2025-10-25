@@ -3,11 +3,11 @@
  * 包含主题、布局、精度等设置
  */
 import { Logger } from '../utils/Logger';
+import { ToastHelper } from '../utils/ToastHelper';
 import { ThemeManager } from '../utils/ThemeManager';
 import { NetworkMonitor, NetworkState } from '../utils/NetworkMonitor';
 import { OfflineManager, OfflineStatus } from '../modules/OfflineManager';
 import { APP_NAME, APP_VERSION } from '../utils/Constants';
-import promptAction from '@ohos.promptAction';
 
 @Component
 export struct SettingsPage {
@@ -192,9 +192,7 @@ export struct SettingsPage {
         .borderWidth({ top: 1 })
         .borderColor('#f0f0f0')
         .onClick(() => {
-          promptAction.showToast({
-            message: '布局模式自动适配设备'
-          });
+          ToastHelper.showInfo('布局模式自动适配设备');
         })
       }
       .width('100%')
@@ -277,9 +275,7 @@ export struct SettingsPage {
             .onChange((isOn: boolean) => {
               this.autoSync = isOn;
               Logger.info(`Auto sync: ${isOn}`);
-              promptAction.showToast({
-                message: isOn ? '已开启自动同步' : '已关闭自动同步'
-              });
+              ToastHelper.showInfo(isOn ? '已开启自动同步' : '已关闭自动同步');
             })
         }
         .width('100%')
@@ -370,9 +366,7 @@ export struct SettingsPage {
       .onClick(async () => {
         await this.themeManager.setTheme(value as 'light' | 'dark');
         Logger.info(`Theme changed to: ${value}`);
-        promptAction.showToast({
-          message: `已切换到${label}主题`
-        });
+        ToastHelper.showInfo(`已切换到${label}主题`);
       })
   }
   
@@ -388,9 +382,7 @@ export struct SettingsPage {
       .onClick(() => {
         this.angleUnit = value;
         Logger.info(`Angle unit changed to: ${value}`);
-        promptAction.showToast({
-          message: `角度单位已切换到${label}`
-        });
+        ToastHelper.showInfo(`角度单位已切换到${label}`);
       })
   }
   
@@ -415,22 +407,16 @@ export struct SettingsPage {
    */
   private async handleManualSync() {
     try {
-      promptAction.showToast({
-        message: '开始同步...'
-      });
+      ToastHelper.showInfo('开始同步...');
       
       await this.offlineManager.manualSync();
       
-      promptAction.showToast({
-        message: '同步完成'
-      });
+      ToastHelper.showSuccess('同步完成');
       
       this.updateOfflineStatus();
     } catch (error) {
       Logger.error('Manual sync failed', error);
-      promptAction.showToast({
-        message: '同步失败：' + (error as Error).message
-      });
+      ToastHelper.showError('同步失败：' + (error as Error).message);
     }
   }
 }

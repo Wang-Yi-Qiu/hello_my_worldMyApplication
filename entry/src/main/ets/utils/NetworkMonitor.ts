@@ -2,7 +2,7 @@
  * 网络状态监听器
  * 监听网络连接状态变化
  */
-import connection from '@ohos.net.connection';
+import { connection } from '@kit.NetworkKit';
 import { Logger } from './Logger';
 
 export enum NetworkState {

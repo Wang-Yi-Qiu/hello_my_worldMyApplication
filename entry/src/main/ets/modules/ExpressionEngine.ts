@@ -94,23 +94,46 @@ export class ExpressionEngine {
     // 移除空格
     let sanitized = expression.replace(/\s/g, '');
     
-    // 替换数学函数为 JavaScript Math 函数
-    sanitized = this.replaceMathFunctions(sanitized);
+    // 检查是否包含复杂数学函数或常数
+    const hasMathFunctions = /\b(sin|cos|tan|sqrt|log|ln|exp|pow|asin|acos|atan|abs|ceil|floor|round|pi|e)\b/i.test(sanitized);
     
-    // 验证表达式只包含安全字符
-    if (!/^[0-9+\-*\/.()A-Za-z,]+$/.test(sanitized)) {
-      throw new Error(ERROR_MESSAGES.INVALID_EXPRESSION);
-    }
-
-    // 基础运算符支持
-    try {
-      // 使用 Function 构造函数安全地求值
-      const func = new Function('return ' + sanitized);
-      const result = func();
-      return result;
-    } catch (error) {
-      Logger.error('safeEval error', error);
-      throw new Error(ERROR_MESSAGES.INVALID_EXPRESSION);
+    if (hasMathFunctions) {
+      // 包含数学函数，使用 Function 求值
+      sanitized = this.replaceMathFunctions(sanitized);
+      
+      Logger.debug(`Processed expression: ${sanitized}`);
+      
+      // 验证表达式只包含安全字符
+      if (!/^[0-9+\-*\/.()A-Za-z,^]+$/.test(sanitized)) {
+        Logger.error(`Invalid characters in expression: ${sanitized}`);
+        throw new Error(ERROR_MESSAGES.INVALID_EXPRESSION);
+      }
+      
+      try {
+        // 使用 Function 构造函数安全地求值
+        const func = new Function('return ' + sanitized);
+        const result = func();
+        
+        if (typeof result !== 'number' || isNaN(result)) {
+          throw new Error(ERROR_MESSAGES.CALCULATION_ERROR);
+        }
+        
+        return result;
+      } catch (error) {
+        Logger.error('safeEval with Function error', error);
+        throw new Error(ERROR_MESSAGES.CALCULATION_ERROR);
+      }
+    } else {
+      // 简单表达式，使用自定义解析器
+      try {
+        // 替换幂运算符
+        sanitized = sanitized.replace(/\*\*/g, '^');
+        const result = this.parseExpression(sanitized);
+        return result;
+      } catch (error) {
+        Logger.error('safeEval with parseExpression error', error);
+        throw new Error(ERROR_MESSAGES.CALCULATION_ERROR);
+      }
     }
   }
   
@@ -118,31 +141,327 @@ export class ExpressionEngine {
    * 替换数学函数为 JavaScript Math 对象函数
    */
   private replaceMathFunctions(expr: string): string {
-    const mathFunctions = [
-      'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
-      'sinh', 'cosh', 'tanh',
-      'exp', 'log', 'log10', 'log2',
-      'sqrt', 'abs', 'ceil', 'floor', 'round',
-      'pow', 'min', 'max'
-    ];
-    
     let result = expr;
     
+    // 替换幂运算符 ^ 为 **
+    result = result.replace(/\^/g, '**');
+    
     // 替换数学常数
-    result = result.replace(/\bpi\b/g, 'Math.PI');
+    // 注意：先替换 exp 函数，避免 e 被误替换
+    // 先处理 exp 函数
+    result = result.replace(/\bexp\(/g, 'Math.exp(');
+    
+    // 然后替换独立的 e 常数（不在 exp 等函数名中）
     result = result.replace(/\be\b/g, 'Math.E');
     
-    // 替换数学函数
-    mathFunctions.forEach(func => {
+    // 替换 pi
+    result = result.replace(/\bpi\b/gi, 'Math.PI');
+    
+    // 处理阶乘函数 - 在处理其他函数之前
+    result = this.replaceFactorial(result);
+    
+    // 处理排列组合函数
+    result = this.replacePermutation(result);
+    result = this.replaceCombination(result);
+    
+    // 处理三角函数 - 需要角度转弧度
+    // 使用更智能的方法：找到函数和其参数，然后整体替换
+    result = this.replaceTrigFunctions(result, 'sin');
+    result = this.replaceTrigFunctions(result, 'cos');
+    result = this.replaceTrigFunctions(result, 'tan');
+    
+    // 反三角函数返回角度
+    result = this.replaceInverseTrigFunctions(result, 'asin');
+    result = this.replaceInverseTrigFunctions(result, 'acos');
+    result = this.replaceInverseTrigFunctions(result, 'atan');
+    
+    // 双曲函数
+    result = this.replaceHyperbolicFunctions(result, 'sinh');
+    result = this.replaceHyperbolicFunctions(result, 'cosh');
+    result = this.replaceHyperbolicFunctions(result, 'tanh');
+    
+    // 反双曲函数
+    result = this.replaceInverseHyperbolicFunctions(result, 'asinh');
+    result = this.replaceInverseHyperbolicFunctions(result, 'acosh');
+    result = this.replaceInverseHyperbolicFunctions(result, 'atanh');
+    
+    // 其他数学函数（注意：exp 已经处理过了）
+    const otherFunctions = [
+      'sqrt', 'abs', 
+      'ceil', 'floor', 'round',
+      'pow', 'min', 'max',
+      'sign', 'trunc'
+    ];
+    
+    otherFunctions.forEach(func => {
       const regex = new RegExp(`\\b${func}\\(`, 'g');
       result = result.replace(regex, `Math.${func}(`);
+    });
+    
+    // ln 转换为 log (自然对数)
+    result = result.replace(/\bln\(/g, 'Math.log(');
+    // log 转换为 log10 (常用对数) - 但要避免替换已经替换过的Math.log
+    result = result.replace(/\blog\(/g, 'Math.log10(');
+    
+    return result;
+  }
+
+  /**
+   * 阶乘函数
+   */
+  private factorial(n: number): number {
+    if (n < 0) {
+      throw new Error('阶乘不支持负数');
+    }
+    if (!Number.isInteger(n)) {
+      throw new Error('阶乘只支持整数');
+    }
+    if (n > 170) {
+      // JavaScript 的 Number 类型无法表示 171! 及以上
+      return Infinity;
+    }
+    if (n === 0 || n === 1) {
+      return 1;
+    }
+    let result = 1;
+    for (let i = 2; i <= n; i++) {
+      result *= i;
+    }
+    return result;
+  }
+
+  /**
+   * 排列数 P(n, r) = n! / (n-r)!
+   */
+  private permutation(n: number, r: number): number {
+    if (n < 0 || r < 0) {
+      throw new Error('排列数不支持负数');
+    }
+    if (!Number.isInteger(n) || !Number.isInteger(r)) {
+      throw new Error('排列数只支持整数');
+    }
+    if (r > n) {
+      return 0;
+    }
+    let result = 1;
+    for (let i = n; i > n - r; i--) {
+      result *= i;
+    }
+    return result;
+  }
+
+  /**
+   * 组合数 C(n, r) = n! / (r! * (n-r)!)
+   */
+  private combination(n: number, r: number): number {
+    if (n < 0 || r < 0) {
+      throw new Error('组合数不支持负数');
+    }
+    if (!Number.isInteger(n) || !Number.isInteger(r)) {
+      throw new Error('组合数只支持整数');
+    }
+    if (r > n) {
+      return 0;
+    }
+    // 优化：C(n, r) = C(n, n-r)，选择较小的 r
+    if (r > n - r) {
+      r = n - r;
+    }
+    let result = 1;
+    for (let i = 0; i < r; i++) {
+      result *= (n - i);
+      result /= (i + 1);
+    }
+    return Math.round(result); // 确保结果是整数
+  }
+
+  /**
+   * 替换阶乘表达式
+   * 例如：5! -> factorial(5)
+   */
+  private replaceFactorial(expr: string): string {
+    // 将阶乘函数注入到全局作用域
+    const factorialFunc = this.factorial.bind(this);
+    
+    // 匹配模式：数字或括号表达式后跟 !
+    // 例如：5!, (3+2)!
+    let result = expr;
+    
+    // 处理括号表达式的阶乘：(expr)!
+    result = result.replace(/\(([^)]+)\)!/g, (match, p1) => {
+      return `((function(){var __fact=${factorialFunc.toString()};return __fact(${p1})})())`;
+    });
+    
+    // 处理简单数字的阶乘：5!
+    result = result.replace(/(\d+)!/g, (match, p1) => {
+      return `((function(){var __fact=${factorialFunc.toString()};return __fact(${p1})})())`;
     });
     
     return result;
   }
 
   /**
-   * 简单的表达式解析器（支持 +, -, *, /, 括号）
+   * 替换排列表达式
+   * 例如：P(5, 3) -> permutation(5, 3)
+   */
+  private replacePermutation(expr: string): string {
+    const permFunc = this.permutation.bind(this);
+    
+    let result = expr;
+    result = result.replace(/\bP\((\d+),\s*(\d+)\)/g, (match, n, r) => {
+      return `((function(){var __perm=${permFunc.toString()};return __perm(${n},${r})})())`;
+    });
+    
+    return result;
+  }
+
+  /**
+   * 替换组合表达式
+   * 例如：C(5, 3) -> combination(5, 3)
+   */
+  private replaceCombination(expr: string): string {
+    const combFunc = this.combination.bind(this);
+    
+    let result = expr;
+    result = result.replace(/\bC\((\d+),\s*(\d+)\)/g, (match, n, r) => {
+      return `((function(){var __comb=${combFunc.toString()};return __comb(${n},${r})})())`;
+    });
+    
+    return result;
+  }
+
+  /**
+   * 替换双曲函数
+   */
+  private replaceHyperbolicFunctions(expr: string, funcName: string): string {
+    const regex = new RegExp(`\\b${funcName}\\(`, 'g');
+    return expr.replace(regex, `Math.${funcName}(`);
+  }
+
+  /**
+   * 替换反双曲函数
+   */
+  private replaceInverseHyperbolicFunctions(expr: string, funcName: string): string {
+    const regex = new RegExp(`\\b${funcName}\\(`, 'g');
+    return expr.replace(regex, `Math.${funcName}(`);
+  }
+
+  /**
+   * 替换三角函数（角度转弧度）
+   */
+  private replaceTrigFunctions(expr: string, funcName: string): string {
+    let result = expr;
+    let searchPos = 0;
+    
+    while (true) {
+      // 查找函数名
+      const funcPattern = `${funcName}(`;
+      const funcIndex = result.indexOf(funcPattern, searchPos);
+      
+      if (funcIndex === -1) {
+        break; // 没有找到更多的函数
+      }
+      
+      // 检查是否是独立的函数名（前面不是字母或数字）
+      if (funcIndex > 0) {
+        const prevChar = result[funcIndex - 1];
+        if (/[a-zA-Z0-9_]/.test(prevChar)) {
+          // 不是独立的函数名，继续搜索
+          searchPos = funcIndex + 1;
+          continue;
+        }
+      }
+      
+      const funcStart = funcIndex + funcPattern.length;
+      
+      // 找到匹配的右括号
+      let parenCount = 1;
+      let endPos = funcStart;
+      
+      while (endPos < result.length && parenCount > 0) {
+        if (result[endPos] === '(') parenCount++;
+        if (result[endPos] === ')') parenCount--;
+        endPos++;
+      }
+      
+      if (parenCount === 0) {
+        // 提取参数
+        const arg = result.substring(funcStart, endPos - 1);
+        // 构建新的表达式：Math.sin((Math.PI/180)*(arg))
+        const replacement = `Math.${funcName}((Math.PI/180)*(${arg}))`;
+        
+        result = result.substring(0, funcIndex) + replacement + result.substring(endPos);
+        
+        // 更新搜索位置到替换后的位置
+        searchPos = funcIndex + replacement.length;
+      } else {
+        // 括号不匹配，跳过
+        searchPos = funcIndex + 1;
+      }
+    }
+    
+    return result;
+  }
+
+  /**
+   * 替换反三角函数（返回角度）
+   */
+  private replaceInverseTrigFunctions(expr: string, funcName: string): string {
+    let result = expr;
+    let searchPos = 0;
+    
+    while (true) {
+      // 查找函数名
+      const funcPattern = `${funcName}(`;
+      const funcIndex = result.indexOf(funcPattern, searchPos);
+      
+      if (funcIndex === -1) {
+        break; // 没有找到更多的函数
+      }
+      
+      // 检查是否是独立的函数名（前面不是字母或数字）
+      if (funcIndex > 0) {
+        const prevChar = result[funcIndex - 1];
+        if (/[a-zA-Z0-9_]/.test(prevChar)) {
+          // 不是独立的函数名，继续搜索
+          searchPos = funcIndex + 1;
+          continue;
+        }
+      }
+      
+      const funcStart = funcIndex + funcPattern.length;
+      
+      // 找到匹配的右括号
+      let parenCount = 1;
+      let endPos = funcStart;
+      
+      while (endPos < result.length && parenCount > 0) {
+        if (result[endPos] === '(') parenCount++;
+        if (result[endPos] === ')') parenCount--;
+        endPos++;
+      }
+      
+      if (parenCount === 0) {
+        // 提取参数
+        const arg = result.substring(funcStart, endPos - 1);
+        // 构建新的表达式：(180/Math.PI)*Math.asin(arg)
+        const replacement = `((180/Math.PI)*Math.${funcName}(${arg}))`;
+        
+        result = result.substring(0, funcIndex) + replacement + result.substring(endPos);
+        
+        // 更新搜索位置到替换后的位置
+        searchPos = funcIndex + replacement.length;
+      } else {
+        // 括号不匹配，跳过
+        searchPos = funcIndex + 1;
+      }
+    }
+    
+    return result;
+  }
+
+  /**
+   * 简单的表达式解析器（支持 +, -, *, /, ^, 括号）
    */
   private parseExpression(expr: string): number {
     let pos = 0;
@@ -174,12 +493,22 @@ export class ExpressionEngine {
       return parseNumber();
     };
 
-    const parseMulDiv = (): number => {
+    const parsePower = (): number => {
       let result = parseFactor();
+      while (pos < expr.length && expr[pos] === '^') {
+        pos++;
+        const right = parseFactor();
+        result = Math.pow(result, right);
+      }
+      return result;
+    };
+
+    const parseMulDiv = (): number => {
+      let result = parsePower();
       while (pos < expr.length && (expr[pos] === '*' || expr[pos] === '/')) {
         const op = expr[pos];
         pos++;
-        const right = parseFactor();
+        const right = parsePower();
         if (op === '*') {
           result *= right;
         } else {

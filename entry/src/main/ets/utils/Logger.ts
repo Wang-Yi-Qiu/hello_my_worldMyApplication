@@ -2,7 +2,7 @@
  * 日志工具类
  * 封装 HarmonyOS hilog 功能
  */
-import hilog from '@ohos.hilog';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN = 0x0000; // 日志域，可自定义
 const TAG = 'SmartCalc'; // 日志标签

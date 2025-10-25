@@ -4,7 +4,7 @@
  */
 import { Logger } from '../utils/Logger';
 import { APP_NAME, APP_VERSION } from '../utils/Constants';
-import router from '@ohos.router';
+import { router } from '@kit.ArkUI';
 
 @Entry
 @Component
@@ -26,7 +26,7 @@ struct Index {
         try {
           router.pushUrl({
             url: 'pages/MainPage'
-          });
+          }, router.RouterMode.Standard);
         } catch (err) {
           Logger.warn('MainPage not available yet, staying on welcome page');
         }

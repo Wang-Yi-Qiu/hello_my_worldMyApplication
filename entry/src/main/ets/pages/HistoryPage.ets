@@ -2,13 +2,15 @@
  * 历史记录页面
  * 显示计算历史记录
  */
+import { AppTheme } from '../utils/AppTheme';
 import { Logger } from '../utils/Logger';
 import { DataManager, GetHistoryResult } from '../modules/DataManager';
 import { HistoryRecordModel } from '../models/HistoryRecord';
-import promptAction from '@ohos.promptAction';
+import { promptAction } from '@kit.ArkUI';
 
 @Component
 export struct HistoryPage {
+  @StorageLink('currentTheme') currentTheme: string = 'light';
   @State historyList: HistoryRecordModel[] = [];
   @State isLoading: boolean = true;
   @State refreshing: boolean = false;
@@ -179,24 +181,24 @@ export struct HistoryPage {
             })
           
           Text(`已选 ${this.selectedIds.size}/${this.historyList.length}`)
-            .fontSize(14)
-            .fontColor('#333')
-            .margin({ left: 8 })
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.getPrimaryTextColor(this.currentTheme === 'dark'))
+            .margin({ left: AppTheme.SPACING_SMALL })
           
           Blank()
           
           Button('取消')
-            .fontSize(14)
-            .fontColor('#666')
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
             .backgroundColor(Color.Transparent)
             .onClick(() => {
               this.toggleEditMode();
             })
-            .margin({ right: 10 })
+            .margin({ right: AppTheme.SPACING_NORMAL })
           
           Button('删除')
-            .fontSize(14)
-            .fontColor('#ff4d4f')
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.ERROR_COLOR)
             .backgroundColor(Color.Transparent)
             .enabled(this.selectedIds.size > 0)
             .onClick(() => {
@@ -205,34 +207,34 @@ export struct HistoryPage {
         } else {
           // 正常模式
           Text(`共 ${this.historyList.length} 条`)
-            .fontSize(14)
-            .fontColor('#666')
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
           
           Blank()
           
           if (this.historyList.length > 0) {
             Button('编辑')
-              .fontSize(14)
-              .fontColor('#1890ff')
+              .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+              .fontColor(AppTheme.PRIMARY_COLOR)
               .backgroundColor(Color.Transparent)
               .onClick(() => {
                 this.toggleEditMode();
               })
-              .margin({ right: 10 })
+              .margin({ right: AppTheme.SPACING_NORMAL })
           }
           
           Button('刷新')
-            .fontSize(14)
-            .fontColor('#1890ff')
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.PRIMARY_COLOR)
             .backgroundColor(Color.Transparent)
             .onClick(() => {
               this.loadHistory();
             })
-            .margin({ right: 10 })
+            .margin({ right: AppTheme.SPACING_NORMAL })
           
           Button('清空')
-            .fontSize(14)
-            .fontColor('#ff4d4f')
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.ERROR_COLOR)
             .backgroundColor(Color.Transparent)
             .onClick(() => {
               this.clearHistory();
@@ -240,8 +242,8 @@ export struct HistoryPage {
         }
       }
       .width('100%')
-      .padding(15)
-      .backgroundColor('#fff')
+      .padding(AppTheme.SPACING_MEDIUM)
+      .backgroundColor(AppTheme.getCardBackground(this.currentTheme === 'dark'))
 
       if (this.isLoading) {
         // 加载中
@@ -249,12 +251,12 @@ export struct HistoryPage {
           LoadingProgress()
             .width(50)
             .height(50)
-            .color('#1890ff')
+            .color(AppTheme.PRIMARY_COLOR)
           
           Text('加载中...')
-            .fontSize(14)
-            .fontColor('#999')
-            .margin({ top: 10 })
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.getTertiaryTextColor(this.currentTheme === 'dark'))
+            .margin({ top: AppTheme.SPACING_NORMAL })
         }
         .width('100%')
         .layoutWeight(1)
@@ -264,16 +266,16 @@ export struct HistoryPage {
         Column() {
           Text('📝')
             .fontSize(60)
-            .margin({ bottom: 20 })
+            .margin({ bottom: AppTheme.SPACING_LARGE })
           
           Text('暂无历史记录')
-            .fontSize(16)
-            .fontColor('#999')
+            .fontSize(AppTheme.FONT_SIZE_NORMAL)
+            .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
           
           Text('开始计算后会自动保存')
-            .fontSize(14)
-            .fontColor('#ccc')
-            .margin({ top: 10 })
+            .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+            .fontColor(AppTheme.getTertiaryTextColor(this.currentTheme === 'dark'))
+            .margin({ top: AppTheme.SPACING_NORMAL })
         }
         .width('100%')
         .layoutWeight(1)
@@ -293,13 +295,13 @@ export struct HistoryPage {
         .layoutWeight(1)
         .divider({
           strokeWidth: 1,
-          color: '#f0f0f0'
+          color: AppTheme.getDividerColor(this.currentTheme === 'dark')
         })
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#fff')
+    .backgroundColor(AppTheme.getBackgroundColor(this.currentTheme === 'dark'))
   }
 
   /**
@@ -318,41 +320,41 @@ export struct HistoryPage {
             .onChange((value: boolean) => {
               this.toggleSelection(item.id!);
             })
-            .margin({ right: 12 })
+            .margin({ right: AppTheme.SPACING_NORMAL })
         }
         
         Column() {
           // 表达式
           Text(item.expression)
-            .fontSize(16)
-            .fontColor('#333')
+            .fontSize(AppTheme.FONT_SIZE_NORMAL)
+            .fontColor(AppTheme.getPrimaryTextColor(this.currentTheme === 'dark'))
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           
           // 结果
           Text(`= ${item.result}`)
-            .fontSize(20)
+            .fontSize(AppTheme.FONT_SIZE_TITLE)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#1890ff')
-            .margin({ top: 5 })
+            .fontColor(AppTheme.PRIMARY_COLOR)
+            .margin({ top: AppTheme.SPACING_MINI })
           
           // 时间
           Text(this.formatTime(item.createdAt))
-            .fontSize(12)
-            .fontColor('#999')
-            .margin({ top: 5 })
+            .fontSize(AppTheme.FONT_SIZE_SMALL)
+            .fontColor(AppTheme.getTertiaryTextColor(this.currentTheme === 'dark'))
+            .margin({ top: AppTheme.SPACING_MINI })
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
         
         // 序号
         Text(`#${this.historyList.length - index}`)
-          .fontSize(12)
-          .fontColor('#ccc')
-          .margin({ left: 10 })
+          .fontSize(AppTheme.FONT_SIZE_SMALL)
+          .fontColor(AppTheme.getTertiaryTextColor(this.currentTheme === 'dark'))
+          .margin({ left: AppTheme.SPACING_NORMAL })
       }
       .width('100%')
-      .padding(15)
+      .padding(AppTheme.SPACING_MEDIUM)
     }
     .width('100%')
     .onClick(() => {
@@ -375,9 +377,9 @@ export struct HistoryPage {
    */
   @Builder buildSwipeDelete(item: HistoryRecordModel) {
     Button('删除')
-      .fontSize(14)
-      .fontColor('#fff')
-      .backgroundColor('#ff4d4f')
+      .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+      .fontColor('#FFFFFF')
+      .backgroundColor(AppTheme.ERROR_COLOR)
       .width(80)
       .height('100%')
       .onClick(() => {

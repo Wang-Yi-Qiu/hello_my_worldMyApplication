@@ -4,7 +4,7 @@
  */
 import { Logger } from './Logger';
 import { THEME_COLORS } from './Constants';
-import preferences from '@ohos.data.preferences';
+import { preferences } from '@kit.ArkData';
 
 export class ThemeManager {
   private static instance: ThemeManager;

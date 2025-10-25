@@ -2,7 +2,7 @@
  * 数据管理器
  * 封装所有数据库 CRUD 操作
  */
-import relationalStore from '@ohos.data.relationalStore';
+import { relationalStore } from '@kit.ArkData';
 import { DatabaseManager } from './DatabaseManager';
 import { Formula, FormulaModel } from '../models/Formula';
 import { HistoryRecord, HistoryRecordModel } from '../models/HistoryRecord';
@@ -258,6 +258,34 @@ export class DataManager {
     } catch (error) {
       Logger.error('Get history error', error);
       return { success: false, error: '获取历史失败' };
+    }
+  }
+
+  /**
+   * 更新历史记录
+   */
+  async updateHistory(id: number, history: HistoryRecord): Promise<SaveResult> {
+    try {
+      const store = this.db.getStore();
+      const valueBucket: relationalStore.ValuesBucket = {
+        expression: history.expression,
+        result: history.result,
+        calc_type: history.calc_type,
+        is_favorite: history.is_favorite,
+        category: history.category,
+        sync_state: 0
+      };
+
+      const predicates = new relationalStore.RdbPredicates('history_records');
+      predicates.equalTo('id', id);
+      
+      await store.update(valueBucket, predicates);
+      Logger.info(`History updated: ${id}`);
+      
+      return { success: true, id };
+    } catch (error) {
+      Logger.error('Update history error', error);
+      return { success: false, error: '更新历史失败' };
     }
   }
 

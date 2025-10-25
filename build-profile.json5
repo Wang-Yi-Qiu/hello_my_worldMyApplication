@@ -5,6 +5,7 @@
       {
         "name": "default",
         "signingConfig": "default",
+        "compileSdkVersion": "6.0.0(20)",
         "targetSdkVersion": "6.0.0(20)",
         "compatibleSdkVersion": "6.0.0(20)",
         "runtimeOS": "HarmonyOS",
@@ -18,7 +19,7 @@
     ],
     "buildModeSet": [
       {
-        "name": "debug",
+        "name": "debug"
       },
       {
         "name": "release"

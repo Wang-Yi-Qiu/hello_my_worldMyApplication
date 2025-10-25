@@ -1,6 +1,7 @@
 /**
  * 方程求解器
  * 支持线性方程、二次方程、方程组等
+ * 增强版：支持图形分析功能
  */
 import { Logger } from '../utils/Logger';
 import { ERROR_MESSAGES } from '../utils/Constants';
@@ -18,8 +19,20 @@ export interface LinearSystemResult {
   error?: string;
 }
 
+export interface CriticalPoint {
+  x: number;
+  y: number;
+  type: 'maximum' | 'minimum' | 'inflection';
+}
+
+export interface IntersectionPoint {
+  x: number;
+  y: number;
+}
+
 /**
  * 方程求解器类
+ * 增强版：添加图形分析功能
  */
 export class EquationSolver {
   
@@ -347,6 +360,295 @@ export class EquationSolver {
         success: false,
         error: ERROR_MESSAGES.CALCULATION_ERROR
       };
+    }
+  }
+  
+  /**
+   * 使用牛顿法求函数零点
+   * @param f 函数
+   * @param df 导数函数
+   * @param x0 初始猜测值
+   * @param tolerance 容差
+   * @param maxIterations 最大迭代次数
+   */
+  findZeroNewton(
+    f: (x: number) => number,
+    df: (x: number) => number,
+    x0: number,
+    tolerance: number = 1e-6,
+    maxIterations: number = 100
+  ): { success: boolean; root?: number; iterations?: number; error?: string } {
+    try {
+      Logger.info(`Finding zero using Newton's method, x0=${x0}`);
+      
+      let x = x0;
+      let iteration = 0;
+      
+      while (iteration < maxIterations) {
+        const fx = f(x);
+        const dfx = df(x);
+        
+        // 检查导数是否为零
+        if (Math.abs(dfx) < 1e-10) {
+          return {
+            success: false,
+            error: '导数接近零，无法继续迭代'
+          };
+        }
+        
+        // 牛顿迭代公式
+        const xNew = x - fx / dfx;
+        
+        // 检查收敛
+        if (Math.abs(xNew - x) < tolerance && Math.abs(f(xNew)) < tolerance) {
+          return {
+            success: true,
+            root: xNew,
+            iterations: iteration + 1
+          };
+        }
+        
+        x = xNew;
+        iteration++;
+      }
+      
+      return {
+        success: false,
+        error: '超过最大迭代次数'
+      };
+    } catch (error) {
+      Logger.error('Newton method error', error);
+      return {
+        success: false,
+        error: ERROR_MESSAGES.CALCULATION_ERROR
+      };
+    }
+  }
+  
+  /**
+   * 使用二分法求函数零点
+   * @param f 函数
+   * @param a 区间左端点
+   * @param b 区间右端点
+   * @param tolerance 容差
+   */
+  findZeroBisection(
+    f: (x: number) => number,
+    a: number,
+    b: number,
+    tolerance: number = 1e-6
+  ): { success: boolean; root?: number; iterations?: number; error?: string } {
+    try {
+      Logger.info(`Finding zero using bisection method in [${a}, ${b}]`);
+      
+      let fa = f(a);
+      let fb = f(b);
+      
+      // 检查端点是否为根
+      if (Math.abs(fa) < tolerance) {
+        return { success: true, root: a, iterations: 0 };
+      }
+      if (Math.abs(fb) < tolerance) {
+        return { success: true, root: b, iterations: 0 };
+      }
+      
+      // 检查是否满足二分法条件
+      if (fa * fb > 0) {
+        return {
+          success: false,
+          error: '区间端点函数值同号，不满足二分法条件'
+        };
+      }
+      
+      let iteration = 0;
+      const maxIterations = 100;
+      
+      while (iteration < maxIterations && Math.abs(b - a) > tolerance) {
+        const c = (a + b) / 2;
+        const fc = f(c);
+        
+        if (Math.abs(fc) < tolerance) {
+          return {
+            success: true,
+            root: c,
+            iterations: iteration + 1
+          };
+        }
+        
+        if (fa * fc < 0) {
+          b = c;
+          fb = fc;
+        } else {
+          a = c;
+          fa = fc;
+        }
+        
+        iteration++;
+      }
+      
+      return {
+        success: true,
+        root: (a + b) / 2,
+        iterations: iteration
+      };
+    } catch (error) {
+      Logger.error('Bisection method error', error);
+      return {
+        success: false,
+        error: ERROR_MESSAGES.CALCULATION_ERROR
+      };
+    }
+  }
+  
+  /**
+   * 查找函数在区间内的所有零点（近似）
+   * @param f 函数
+   * @param xMin 区间左端点
+   * @param xMax 区间右端点
+   * @param samples 采样点数
+   */
+  findAllZeros(
+    f: (x: number) => number,
+    xMin: number,
+    xMax: number,
+    samples: number = 100
+  ): number[] {
+    try {
+      Logger.info(`Finding all zeros in [${xMin}, ${xMax}]`);
+      
+      const zeros: number[] = [];
+      const step = (xMax - xMin) / samples;
+      
+      for (let i = 0; i < samples; i++) {
+        const x1 = xMin + i * step;
+        const x2 = xMin + (i + 1) * step;
+        const f1 = f(x1);
+        const f2 = f(x2);
+        
+        // 检查符号变化
+        if (f1 * f2 < 0) {
+          // 使用二分法精确求解
+          const result = this.findZeroBisection(f, x1, x2);
+          if (result.success && result.root !== undefined) {
+            // 检查是否与已有零点重复
+            const isDuplicate = zeros.some(z => Math.abs(z - result.root!) < 1e-4);
+            if (!isDuplicate) {
+              zeros.push(result.root);
+            }
+          }
+        } else if (Math.abs(f1) < 1e-6) {
+          // 检查端点
+          const isDuplicate = zeros.some(z => Math.abs(z - x1) < 1e-4);
+          if (!isDuplicate) {
+            zeros.push(x1);
+          }
+        }
+      }
+      
+      Logger.info(`Found ${zeros.length} zeros`);
+      return zeros.sort((a, b) => a - b);
+    } catch (error) {
+      Logger.error('Find all zeros error', error);
+      return [];
+    }
+  }
+  
+  /**
+   * 查找函数的极值点（使用数值方法）
+   * @param f 函数
+   * @param xMin 区间左端点
+   * @param xMax 区间右端点
+   * @param samples 采样点数
+   */
+  findCriticalPoints(
+    f: (x: number) => number,
+    xMin: number,
+    xMax: number,
+    samples: number = 100
+  ): CriticalPoint[] {
+    try {
+      Logger.info(`Finding critical points in [${xMin}, ${xMax}]`);
+      
+      const criticalPoints: CriticalPoint[] = [];
+      const step = (xMax - xMin) / samples;
+      const h = step / 10; // 用于数值导数的步长
+      
+      for (let i = 1; i < samples; i++) {
+        const x = xMin + i * step;
+        const y = f(x);
+        
+        // 计算数值导数（中心差分）
+        const df = (f(x + h) - f(x - h)) / (2 * h);
+        
+        // 计算二阶导数
+        const d2f = (f(x + h) - 2 * f(x) + f(x - h)) / (h * h);
+        
+        // 检查是否为极值点（导数接近零）
+        if (Math.abs(df) < 0.1) {
+          let type: 'maximum' | 'minimum' | 'inflection';
+          
+          if (d2f > 0) {
+            type = 'minimum';
+          } else if (d2f < 0) {
+            type = 'maximum';
+          } else {
+            type = 'inflection';
+          }
+          
+          // 检查是否与已有点重复
+          const isDuplicate = criticalPoints.some(
+            p => Math.abs(p.x - x) < step
+          );
+          
+          if (!isDuplicate && isFinite(y)) {
+            criticalPoints.push({ x, y, type });
+          }
+        }
+      }
+      
+      Logger.info(`Found ${criticalPoints.length} critical points`);
+      return criticalPoints;
+    } catch (error) {
+      Logger.error('Find critical points error', error);
+      return [];
+    }
+  }
+  
+  /**
+   * 查找两个函数的交点
+   * @param f1 函数1
+   * @param f2 函数2
+   * @param xMin 区间左端点
+   * @param xMax 区间右端点
+   * @param samples 采样点数
+   */
+  findIntersections(
+    f1: (x: number) => number,
+    f2: (x: number) => number,
+    xMin: number,
+    xMax: number,
+    samples: number = 100
+  ): IntersectionPoint[] {
+    try {
+      Logger.info(`Finding intersections in [${xMin}, ${xMax}]`);
+      
+      // 定义差函数
+      const diff = (x: number) => f1(x) - f2(x);
+      
+      // 查找差函数的零点
+      const zeros = this.findAllZeros(diff, xMin, xMax, samples);
+      
+      // 转换为交点
+      const intersections: IntersectionPoint[] = zeros.map(x => ({
+        x,
+        y: f1(x)
+      }));
+      
+      Logger.info(`Found ${intersections.length} intersections`);
+      return intersections;
+    } catch (error) {
+      Logger.error('Find intersections error', error);
+      return [];
     }
   }
 }

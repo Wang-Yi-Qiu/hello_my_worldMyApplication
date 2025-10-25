@@ -1,1756 +1,1094 @@
 /**
  * 高等数学页面
- * 包含方程求解、微积分等功能
+ * LaTeX输入和绘图界面
  */
+import { AppTheme } from '../utils/AppTheme';
 import { Logger } from '../utils/Logger';
-import { EquationSolver, SolveResult, LinearSystemResult } from '../modules/EquationSolver';
-import { CalculusEngine, DerivativeResult, IntegralResult } from '../modules/CalculusEngine';
-import promptAction from '@ohos.promptAction';
+import { promptAction } from '@kit.ArkUI';
+import { CalculusEngine, DerivativeResult, IntegralResult, LimitResult } from '../modules/CalculusEngine';
+import { EquationSolver, SolveResult } from '../modules/EquationSolver';
+import { MathSymbolKeyboard } from '../components/MathSymbolKeyboard';
+import { StructuredInputDialog, InputType, StructuredInputResult, StructuredInputData } from '../components/StructuredInputDialog';
+import { LaTeXRenderer } from '../components/LaTeXRenderer';
+import { DataManager } from '../modules/DataManager';
 
 @Component
 export struct AdvancedMathPage {
-  @State currentTab: number = 0;
-  @State currentEquationType: string = '';
-  @State showEquationSolver: boolean = false;
-  @State currentCalculusType: string = '';
-  @State showCalculusSolver: boolean = false;
+  @StorageLink('currentTheme') currentTheme: string = 'light';
+  @State latexInput: string = '';
+  @State selectedFunction: string = '';
+  @State showSteps: boolean = false;
+  @State showGraph: boolean = false;
+  @State showKeyboard: boolean = false;
+  @State result: string = '';
+  @State resultLatex: string = '';
+  @State steps: string[] = [];
+  @State errorMessage: string = '';
+  @State inputValidationMessage: string = '';
+  @State structuredData: StructuredInputData | null = null;
   
-  private tabNames: string[] = ['方程求解', '微积分', '矩阵运算'];
+  private calculusEngine: CalculusEngine = new CalculusEngine();
+  private equationSolver: EquationSolver = new EquationSolver();
+  private dataManager: DataManager = new DataManager();
+  private functionButtons: string[] = ['求导', '积分', '极限', '方程'];
+  
+  // 结构化输入对话框控制器
+  private structuredInputDialogController: CustomDialogController | null = null;
   
   build() {
     Column() {
-      // Tab 切换栏
+      // 顶部标题栏
       Row() {
-        ForEach(this.tabNames, (name: string, index: number) => {
-          Text(name)
-            .fontSize(16)
-            .fontColor(this.currentTab === index ? '#1890ff' : '#666')
-            .fontWeight(this.currentTab === index ? FontWeight.Bold : FontWeight.Normal)
-            .padding(10)
-            .layoutWeight(1)
-            .textAlign(TextAlign.Center)
-            .onClick(() => {
-              this.currentTab = index;
-              this.showEquationSolver = false;
-              this.showCalculusSolver = false;
-              Logger.info(`Switched to tab: ${name}`);
-            })
-            .border({
-              width: { bottom: this.currentTab === index ? 2 : 0 },
-              color: '#1890ff'
-            })
-        }, (name: string) => name)
+        Text('高等数学')
+          .fontSize(AppTheme.FONT_SIZE_TITLE)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(AppTheme.getPrimaryTextColor(this.currentTheme === 'dark'))
       }
       .width('100%')
-      .backgroundColor('#fff')
-      
-      // 内容区域
-      if (this.currentTab === 0) {
-        if (this.showEquationSolver) {
-          this.buildEquationSolverDetail();
-        } else {
-          this.buildEquationSolverTab();
-        }
-      } else if (this.currentTab === 1) {
-        if (this.showCalculusSolver) {
-          this.buildCalculusDetail();
-        } else {
-          this.buildCalculusTab();
-        }
-      } else {
-        this.buildMatrixTab();
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#f5f5f5')
-  }
-  
-  /**
-   * 方程求解 Tab
-   */
-  @Builder buildEquationSolverTab() {
-    Column() {
-      Text('方程求解器')
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .margin({ top: 20, bottom: 10 })
-      
-      Text('选择方程类型：')
-        .fontSize(14)
-        .fontColor('#666')
-        .margin({ top: 10, bottom: 10 })
-      
-      // 方程类型选择
-      Column() {
-        this.buildEquationTypeButton('一元一次方程', 'ax + b = 0');
-        this.buildEquationTypeButton('一元二次方程', 'ax² + bx + c = 0');
-        this.buildEquationTypeButton('一元三次方程', 'ax³ + bx² + cx + d = 0');
-        this.buildEquationTypeButton('二元一次方程组', '2x2 线性方程组');
-        this.buildEquationTypeButton('三元一次方程组', '3x3 线性方程组');
-      }
-      .width('90%')
-      .padding(10)
-    }
-    .width('100%')
-    .layoutWeight(1)
-    .padding(20)
-    .justifyContent(FlexAlign.Start)
-  }
-  
-  /**
-   * 微积分 Tab
-   */
-  @Builder buildCalculusTab() {
-    Column() {
-      Text('微积分计算')
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .margin({ top: 20, bottom: 10 })
-      
-      Text('选择计算类型：')
-        .fontSize(14)
-        .fontColor('#666')
-        .margin({ top: 10, bottom: 10 })
-      
-      // 微积分类型选择
-      Column() {
-        this.buildCalculusTypeButton('求导数', 'd/dx f(x)');
-        this.buildCalculusTypeButton('定积分', '∫[a,b] f(x) dx');
-        this.buildCalculusTypeButton('不定积分', '∫ f(x) dx');
-        this.buildCalculusTypeButton('极限', 'lim f(x) as x → a');
-        this.buildCalculusTypeButton('泰勒展开', 'f(x) ≈ Σ...');
-      }
-      .width('90%')
-      .padding(10)
-    }
-    .width('100%')
-    .layoutWeight(1)
-    .padding(20)
-    .justifyContent(FlexAlign.Start)
-  }
-  
-  /**
-   * 矩阵运算 Tab
-   */
-  @Builder buildMatrixTab() {
-    Column() {
-      Text('🚧 矩阵运算')
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .margin({ top: 20, bottom: 10 })
-      
-      Text('功能开发中...')
-        .fontSize(16)
-        .fontColor('#999')
-        .margin({ top: 50 })
-      
-      Text('即将支持：')
-        .fontSize(14)
-        .fontColor('#666')
-        .margin({ top: 20, bottom: 10 })
-      
-      Column() {
-        this.buildFeatureItem('• 矩阵加减乘');
-        this.buildFeatureItem('• 行列式计算');
-        this.buildFeatureItem('• 矩阵求逆');
-        this.buildFeatureItem('• 特征值与特征向量');
-        this.buildFeatureItem('• 矩阵分解（LU、QR、SVD）');
-      }
-      .alignItems(HorizontalAlign.Start)
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-    .padding(20)
-    .justifyContent(FlexAlign.Start)
-  }
-  
-  /**
-   * 方程类型按钮
-   */
-  @Builder buildEquationTypeButton(title: string, description: string) {
-    Column() {
-      Text(title)
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor('#333')
-      
-      Text(description)
-        .fontSize(12)
-        .fontColor('#999')
-        .margin({ top: 5 })
-    }
-    .width('100%')
-    .padding(15)
-    .margin({ bottom: 10 })
-    .backgroundColor('#fff')
-    .borderRadius(8)
-    .alignItems(HorizontalAlign.Start)
-    .onClick(() => {
-      Logger.info(`Equation type selected: ${title}`);
-      this.currentEquationType = title;
-      this.showEquationSolver = true;
-    })
-  }
-  
-  /**
-   * 微积分类型按钮
-   */
-  @Builder buildCalculusTypeButton(title: string, formula: string) {
-    Column() {
-      Text(title)
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor('#333')
-      
-      Text(formula)
-        .fontSize(12)
-        .fontColor('#999')
-        .fontFamily('monospace')
-        .margin({ top: 5 })
-    }
-    .width('100%')
-    .padding(15)
-    .margin({ bottom: 10 })
-    .backgroundColor('#fff')
-    .borderRadius(8)
-    .alignItems(HorizontalAlign.Start)
-    .onClick(() => {
-      Logger.info(`Calculus type selected: ${title}`);
-      this.currentCalculusType = title;
-      this.showCalculusSolver = true;
-    })
-  }
-  
-  /**
-   * 功能项
-   */
-  @Builder buildFeatureItem(text: string) {
-    Text(text)
-      .fontSize(14)
-      .fontColor('#666')
-      .margin({ bottom: 8 })
-  }
-  
-  /**
-   * 方程求解详细界面
-   */
-  @Builder buildEquationSolverDetail() {
-    Column() {
-      // 返回按钮
-      Row() {
-        Text('← 返回')
-          .fontSize(16)
-          .fontColor('#1890ff')
-          .onClick(() => {
-            this.showEquationSolver = false;
-          })
-      }
-      .width('100%')
-      .padding(15)
-      .backgroundColor('#fff')
-      
-      // 根据不同类型显示不同的求解器
-      if (this.currentEquationType === '一元一次方程') {
-        this.buildLinearEquationSolver();
-      } else if (this.currentEquationType === '一元二次方程') {
-        this.buildQuadraticEquationSolver();
-      } else if (this.currentEquationType === '一元三次方程') {
-        this.buildCubicEquationSolver();
-      } else if (this.currentEquationType === '二元一次方程组') {
-        this.buildLinearSystem2x2Solver();
-      } else if (this.currentEquationType === '三元一次方程组') {
-        this.buildLinearSystem3x3Solver();
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#f5f5f5')
-  }
-  
-  /**
-   * 微积分计算详细界面
-   */
-  @Builder buildCalculusDetail() {
-    Column() {
-      // 返回按钮
-      Row() {
-        Text('← 返回')
-          .fontSize(16)
-          .fontColor('#1890ff')
-          .onClick(() => {
-            this.showCalculusSolver = false;
-          })
-      }
-      .width('100%')
-      .padding(15)
-      .backgroundColor('#fff')
-      
-      // 根据不同类型显示不同的计算器
-      if (this.currentCalculusType === '求导数') {
-        this.buildDerivativeCalculator();
-      } else if (this.currentCalculusType === '定积分') {
-        this.buildDefiniteIntegralCalculator();
-      } else if (this.currentCalculusType === '不定积分') {
-        this.buildIndefiniteIntegralCalculator();
-      } else if (this.currentCalculusType === '极限') {
-        this.buildLimitCalculator();
-      } else if (this.currentCalculusType === '泰勒展开') {
-        this.buildTaylorSeriesCalculator();
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#f5f5f5')
-  }
-  
-  // ============ 方程求解器实现 ============
-  
-  /**
-   * 一元一次方程求解器
-   */
-  @Builder buildLinearEquationSolver() {
-    LinearEquationSolver()
-  }
-  
-  /**
-   * 一元二次方程求解器
-   */
-  @Builder buildQuadraticEquationSolver() {
-    QuadraticEquationSolver()
-  }
-  
-  /**
-   * 一元三次方程求解器
-   */
-  @Builder buildCubicEquationSolver() {
-    CubicEquationSolver()
-  }
-  
-  /**
-   * 二元一次方程组求解器
-   */
-  @Builder buildLinearSystem2x2Solver() {
-    LinearSystem2x2Solver()
-  }
-  
-  /**
-   * 三元一次方程组求解器
-   */
-  @Builder buildLinearSystem3x3Solver() {
-    LinearSystem3x3Solver()
-  }
-  
-  // ============ 微积分计算器实现 ============
-  
-  /**
-   * 导数计算器
-   */
-  @Builder buildDerivativeCalculator() {
-    DerivativeCalculator()
-  }
-  
-  /**
-   * 定积分计算器
-   */
-  @Builder buildDefiniteIntegralCalculator() {
-    DefiniteIntegralCalculator()
-  }
-  
-  /**
-   * 不定积分计算器
-   */
-  @Builder buildIndefiniteIntegralCalculator() {
-    IndefiniteIntegralCalculator()
-  }
-  
-  /**
-   * 极限计算器
-   */
-  @Builder buildLimitCalculator() {
-    LimitCalculator()
-  }
-  
-  /**
-   * 泰勒级数计算器
-   */
-  @Builder buildTaylorSeriesCalculator() {
-    TaylorSeriesCalculator()
-  }
-}
+      .height(56)
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor(AppTheme.getCardBackground(this.currentTheme === 'dark'))
 
-// ============ 子组件实现 ============
-
-/**
- * 一元一次方程求解器组件
- */
-@Component
-struct LinearEquationSolver {
-  @State coeffA: string = '';
-  @State coeffB: string = '';
-  @State result: SolveResult | null = null;
-  private solver: EquationSolver = new EquationSolver();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('一元一次方程求解器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('ax + b = 0')
-          .fontSize(16)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
+      Scroll() {
         Column() {
-          Row() {
-            Text('系数 a:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 a' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffA = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          Row() {
-            Text('系数 b:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 b' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffB = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-          
-          Button('求解')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              const a = parseFloat(this.coeffA);
-              const b = parseFloat(this.coeffB);
-              
-              if (isNaN(a) || isNaN(b)) {
-                promptAction.showToast({ message: '请输入有效的数字' });
-                return;
-              }
-              
-              this.result = this.solver.solveLinear(a, b);
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
+          // LaTeX 输入区域
           Column() {
-            Text('求解结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success) {
-              Text('解：' + (this.result.solutions ? this.result.solutions.join(', ') : ''))
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 10 })
+            Row() {
+              Text('输入公式')
+                .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+                .fontWeight(FontWeight.Normal)
+                .fontColor(AppTheme.getPrimaryTextColor(this.currentTheme === 'dark'))
               
-              if (this.result.steps && this.result.steps.length > 0) {
-                Text('求解步骤：')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ top: 10, bottom: 5 })
-                
-                ForEach(this.result.steps, (step: string, index: number) => {
-                  Text(`${index + 1}. ${step}`)
-                    .fontSize(14)
-                    .fontColor('#666')
-                    .margin({ bottom: 5 })
-                    .width('100%')
-                }, (step: string, index: number) => index.toString())
-              }
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 一元二次方程求解器组件
- */
-@Component
-struct QuadraticEquationSolver {
-  @State coeffA: string = '';
-  @State coeffB: string = '';
-  @State coeffC: string = '';
-  @State result: SolveResult | null = null;
-  private solver: EquationSolver = new EquationSolver();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('一元二次方程求解器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('ax² + bx + c = 0')
-          .fontSize(16)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Row() {
-            Text('系数 a:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 a' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffA = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          Row() {
-            Text('系数 b:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 b' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffB = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          Row() {
-            Text('系数 c:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 c' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffC = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-          
-          Button('求解')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              const a = parseFloat(this.coeffA);
-              const b = parseFloat(this.coeffB);
-              const c = parseFloat(this.coeffC);
+              Blank()
               
-              if (isNaN(a) || isNaN(b) || isNaN(c)) {
-                promptAction.showToast({ message: '请输入有效的数字' });
-                return;
-              }
-              
-              this.result = this.solver.solveQuadratic(a, b, c);
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
-          Column() {
-            Text('求解结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success) {
-              if (this.result.solutions && this.result.solutions.length > 0) {
-                Text('解：')
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ bottom: 5 })
-                
-                ForEach(this.result.solutions, (sol: string, index: number) => {
-                  Text(`x${index + 1} = ${sol}`)
-                    .fontSize(16)
-                    .fontColor('#52c41a')
-                    .margin({ bottom: 5 })
-                }, (sol: string, index: number) => index.toString())
-              }
-              
-              if (this.result.steps && this.result.steps.length > 0) {
-                Text('求解步骤：')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ top: 10, bottom: 5 })
-                
-                ForEach(this.result.steps, (step: string, index: number) => {
-                  Text(`${index + 1}. ${step}`)
-                    .fontSize(14)
-                    .fontColor('#666')
-                    .margin({ bottom: 5 })
-                    .width('100%')
-                }, (step: string, index: number) => index.toString())
-              }
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 一元三次方程求解器组件
- */
-@Component
-struct CubicEquationSolver {
-  @State coeffA: string = '';
-  @State coeffB: string = '';
-  @State coeffC: string = '';
-  @State coeffD: string = '';
-  @State result: SolveResult | null = null;
-  private solver: EquationSolver = new EquationSolver();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('一元三次方程求解器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('ax³ + bx² + cx + d = 0')
-          .fontSize(16)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Row() {
-            Text('系数 a:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 a' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffA = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          Row() {
-            Text('系数 b:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 b' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffB = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          Row() {
-            Text('系数 c:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 c' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffC = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          Row() {
-            Text('系数 d:')
-              .width(80)
-              .fontSize(16)
-            TextInput({ placeholder: '请输入 d' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.coeffD = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-          
-          Button('求解')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              const a = parseFloat(this.coeffA);
-              const b = parseFloat(this.coeffB);
-              const c = parseFloat(this.coeffC);
-              const d = parseFloat(this.coeffD);
-              
-              if (isNaN(a) || isNaN(b) || isNaN(c) || isNaN(d)) {
-                promptAction.showToast({ message: '请输入有效的数字' });
-                return;
-              }
-              
-              this.result = this.solver.solveCubic(a, b, c, d);
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
-          Column() {
-            Text('求解结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success) {
-              if (this.result.solutions && this.result.solutions.length > 0) {
-                Text('解：')
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ bottom: 5 })
-                
-                ForEach(this.result.solutions, (sol: string, index: number) => {
-                  Text(`x${index + 1} = ${sol}`)
-                    .fontSize(16)
-                    .fontColor('#52c41a')
-                    .margin({ bottom: 5 })
-                }, (sol: string, index: number) => index.toString())
-              }
-              
-              if (this.result.steps && this.result.steps.length > 0) {
-                Text('求解步骤：')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ top: 10, bottom: 5 })
-                
-                ForEach(this.result.steps, (step: string, index: number) => {
-                  Text(`${index + 1}. ${step}`)
-                    .fontSize(14)
-                    .fontColor('#666')
-                    .margin({ bottom: 5 })
-                    .width('100%')
-                }, (step: string, index: number) => index.toString())
-              }
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 二元一次方程组求解器组件
- */
-@Component
-struct LinearSystem2x2Solver {
-  @State a1: string = '';
-  @State b1: string = '';
-  @State c1: string = '';
-  @State a2: string = '';
-  @State b2: string = '';
-  @State c2: string = '';
-  @State result: LinearSystemResult | null = null;
-  private solver: EquationSolver = new EquationSolver();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('二元一次方程组求解器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Column() {
-          Text('a₁x + b₁y = c₁')
-            .fontSize(16)
-            .fontColor('#666')
-          Text('a₂x + b₂y = c₂')
-            .fontSize(16)
-            .fontColor('#666')
-        }
-        .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Text('第一个方程：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 10 })
-          
-          Row() {
-            Text('a₁:')
-              .width(60)
-              .fontSize(16)
-            TextInput({ placeholder: '系数 a₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.a1 = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 10 })
-          
-          Row() {
-            Text('b₁:')
-              .width(60)
-              .fontSize(16)
-            TextInput({ placeholder: '系数 b₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.b1 = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 10 })
-          
-          Row() {
-            Text('c₁:')
-              .width(60)
-              .fontSize(16)
-            TextInput({ placeholder: '常数 c₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.c1 = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-          
-          Text('第二个方程：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 10 })
-          
-          Row() {
-            Text('a₂:')
-              .width(60)
-              .fontSize(16)
-            TextInput({ placeholder: '系数 a₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.a2 = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 10 })
-          
-          Row() {
-            Text('b₂:')
-              .width(60)
-              .fontSize(16)
-            TextInput({ placeholder: '系数 b₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.b2 = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 10 })
-          
-          Row() {
-            Text('c₂:')
-              .width(60)
-              .fontSize(16)
-            TextInput({ placeholder: '常数 c₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => {
-                this.c2 = value;
-              })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-          
-          Button('求解')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              const params = [
-                parseFloat(this.a1), parseFloat(this.b1), parseFloat(this.c1),
-                parseFloat(this.a2), parseFloat(this.b2), parseFloat(this.c2)
-              ];
-              
-              if (params.some(p => isNaN(p))) {
-                promptAction.showToast({ message: '请输入有效的数字' });
-                return;
-              }
-              
-              this.result = this.solver.solveLinearSystem2x2(
-                params[0], params[1], params[2],
-                params[3], params[4], params[5]
-              );
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
-          Column() {
-            Text('求解结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success && this.result.solution) {
-              Text(`x = ${this.result.solution.get('x')}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 5 })
-              Text(`y = ${this.result.solution.get('y')}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 5 })
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 三元一次方程组求解器组件
- */
-@Component
-struct LinearSystem3x3Solver {
-  @State a1: string = '';
-  @State b1: string = '';
-  @State c1: string = '';
-  @State d1: string = '';
-  @State a2: string = '';
-  @State b2: string = '';
-  @State c2: string = '';
-  @State d2: string = '';
-  @State a3: string = '';
-  @State b3: string = '';
-  @State c3: string = '';
-  @State d3: string = '';
-  @State result: LinearSystemResult | null = null;
-  private solver: EquationSolver = new EquationSolver();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('三元一次方程组求解器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Column() {
-          Text('a₁x + b₁y + c₁z = d₁')
-            .fontSize(14)
-            .fontColor('#666')
-          Text('a₂x + b₂y + c₂z = d₂')
-            .fontSize(14)
-            .fontColor('#666')
-          Text('a₃x + b₃y + c₃z = d₃')
-            .fontSize(14)
-            .fontColor('#666')
-        }
-        .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          // 第一个方程
-          Text('方程 1：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          Row() {
-            TextInput({ placeholder: 'a₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.a1 = value; })
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'b₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.b1 = value; })
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'c₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.c1 = value; })
-              .margin({ right: 5 })
-            Text('=')
-              .fontSize(16)
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'd₁' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.d1 = value; })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          // 第二个方程
-          Text('方程 2：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          Row() {
-            TextInput({ placeholder: 'a₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.a2 = value; })
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'b₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.b2 = value; })
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'c₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.c2 = value; })
-              .margin({ right: 5 })
-            Text('=')
-              .fontSize(16)
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'd₂' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.d2 = value; })
-          }
-          .width('100%')
-          .margin({ bottom: 15 })
-          
-          // 第三个方程
-          Text('方程 3：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          Row() {
-            TextInput({ placeholder: 'a₃' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.a3 = value; })
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'b₃' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.b3 = value; })
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'c₃' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.c3 = value; })
-              .margin({ right: 5 })
-            Text('=')
-              .fontSize(16)
-              .margin({ right: 5 })
-            TextInput({ placeholder: 'd₃' })
-              .layoutWeight(1)
-              .type(InputType.Number)
-              .onChange((value: string) => { this.d3 = value; })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-          
-          Button('求解')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              const params = [
-                parseFloat(this.a1), parseFloat(this.b1), parseFloat(this.c1), parseFloat(this.d1),
-                parseFloat(this.a2), parseFloat(this.b2), parseFloat(this.c2), parseFloat(this.d2),
-                parseFloat(this.a3), parseFloat(this.b3), parseFloat(this.c3), parseFloat(this.d3)
-              ];
-              
-              if (params.some(p => isNaN(p))) {
-                promptAction.showToast({ message: '请输入有效的数字' });
-                return;
-              }
-              
-              const matrix = [
-                [params[0], params[1], params[2], params[3]],
-                [params[4], params[5], params[6], params[7]],
-                [params[8], params[9], params[10], params[11]]
-              ];
-              
-              this.result = this.solver.solveLinearSystem3x3(matrix);
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
-          Column() {
-            Text('求解结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success && this.result.solution) {
-              Text(`x = ${this.result.solution.get('x')}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 5 })
-              Text(`y = ${this.result.solution.get('y')}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 5 })
-              Text(`z = ${this.result.solution.get('z')}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 5 })
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-// ============ 微积分计算器组件 ============
-
-/**
- * 导数计算器组件
- */
-@Component
-struct DerivativeCalculator {
-  @State expression: string = '';
-  @State variable: string = 'x';
-  @State result: DerivativeResult | null = null;
-  private engine: CalculusEngine = new CalculusEngine();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('导数计算器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('计算函数的导数')
-          .fontSize(16)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Text('表达式：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          TextInput({ placeholder: '例如: x^2 或 3x + 5' })
-            .width('100%')
-            .margin({ bottom: 15 })
-            .onChange((value: string) => {
-              this.expression = value;
-            })
-          
-          Text('提示：支持基本的多项式函数')
-            .fontSize(12)
-            .fontColor('#999')
-            .margin({ bottom: 20 })
-          
-          Button('求导')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              if (!this.expression) {
-                promptAction.showToast({ message: '请输入表达式' });
-                return;
-              }
-              
-              this.result = this.engine.symbolicDerivative(this.expression, this.variable);
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
-          Column() {
-            Text('计算结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success) {
-              Text(`f'(${this.variable}) = ${this.result.derivative}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 10 })
-              
-              if (this.result.steps && this.result.steps.length > 0) {
-                Text('计算步骤：')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ top: 10, bottom: 5 })
-                
-                ForEach(this.result.steps, (step: string, index: number) => {
-                  Text(`${index + 1}. ${step}`)
-                    .fontSize(14)
-                    .fontColor('#666')
-                    .margin({ bottom: 5 })
-                    .width('100%')
-                }, (step: string, index: number) => index.toString())
-              }
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 定积分计算器组件
- */
-@Component
-struct DefiniteIntegralCalculator {
-  @State expression: string = '';
-  @State variable: string = 'x';
-  @State lowerBound: string = '';
-  @State upperBound: string = '';
-  @State result: IntegralResult | null = null;
-  private engine: CalculusEngine = new CalculusEngine();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('定积分计算器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('∫[a,b] f(x) dx')
-          .fontSize(16)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Text('被积函数：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          TextInput({ placeholder: '例如: x*x 或 2*x + 1' })
-            .width('100%')
-            .margin({ bottom: 15 })
-            .onChange((value: string) => {
-              this.expression = value;
-            })
-          
-          Row() {
-            Column() {
-              Text('下限 a:')
-                .fontSize(14)
-                .margin({ bottom: 5 })
-              TextInput({ placeholder: '下限' })
-                .type(InputType.Number)
-                .onChange((value: string) => {
-                  this.lowerBound = value;
+              Button('数学键盘')
+                .fontSize(AppTheme.FONT_SIZE_SMALL)
+                .height(32)
+                .backgroundColor(AppTheme.getCardBackground(this.currentTheme === 'dark'))
+                .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
+                .borderRadius(AppTheme.BORDER_RADIUS_LARGE)
+                .padding({ left: AppTheme.SPACING_MEDIUM, right: AppTheme.SPACING_MEDIUM })
+                .onClick(() => {
+                  this.showKeyboard = !this.showKeyboard;
                 })
             }
-            .layoutWeight(1)
-            .margin({ right: 10 })
+            .width('100%')
+            .margin({ bottom: AppTheme.SPACING_NORMAL })
             
-            Column() {
-              Text('上限 b:')
-                .fontSize(14)
-                .margin({ bottom: 5 })
-              TextInput({ placeholder: '上限' })
-                .type(InputType.Number)
-                .onChange((value: string) => {
-                  this.upperBound = value;
-                })
+            TextArea({ 
+              placeholder: '输入数学表达式，或点击下方按钮使用引导式输入',
+              text: this.latexInput
+            })
+              .width('100%')
+              .height(120)
+              .fontSize(AppTheme.FONT_SIZE_NORMAL)
+              .backgroundColor(this.currentTheme === 'dark' ? AppTheme.CARD_BG_DARK : AppTheme.DIVIDER_COLOR_LIGHT)
+              .fontColor(AppTheme.getPrimaryTextColor(this.currentTheme === 'dark'))
+              .borderRadius(AppTheme.BORDER_RADIUS_MEDIUM)
+              .padding(AppTheme.SPACING_MEDIUM)
+              .onChange((value: string) => {
+                this.latexInput = value;
+                this.errorMessage = '';
+                this.validateInputRealtime(value);
+              })
+            
+            // 实时验证提示
+            if (this.inputValidationMessage) {
+              Row() {
+                Text('💡 ' + this.inputValidationMessage)
+                  .fontSize(AppTheme.FONT_SIZE_SMALL)
+                  .fontColor(AppTheme.SUCCESS_COLOR)
+                  .lineHeight(18)
+              }
+              .width('100%')
+              .padding({ top: AppTheme.SPACING_SMALL })
             }
-            .layoutWeight(1)
           }
           .width('100%')
-          .margin({ bottom: 20 })
+          .padding({ left: 20, right: 20, top: 20 })
+          .margin({ bottom: 16 })
           
-          Button('计算')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              if (!this.expression || !this.lowerBound || !this.upperBound) {
-                promptAction.showToast({ message: '请填写完整信息' });
-                return;
-              }
-              
-              const lower = parseFloat(this.lowerBound);
-              const upper = parseFloat(this.upperBound);
-              
-              if (isNaN(lower) || isNaN(upper)) {
-                promptAction.showToast({ message: '请输入有效的数字' });
-                return;
-              }
-              
-              this.result = this.engine.definiteIntegral(this.expression, this.variable, lower, upper);
-            })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
-          Column() {
-            Text('计算结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success) {
-              Text(`积分值 = ${this.result.value}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 10 })
-              
-              if (this.result.steps && this.result.steps.length > 0) {
-                Text('计算步骤：')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ top: 10, bottom: 5 })
+          // 数学符号键盘（可收起/展开）
+          if (this.showKeyboard) {
+            Column() {
+              Row() {
+                Text('数学符号键盘')
+                  .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+                  .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
+                  .layoutWeight(1)
                 
-                ForEach(this.result.steps, (step: string, index: number) => {
-                  Text(`${index + 1}. ${step}`)
-                    .fontSize(14)
-                    .fontColor('#666')
-                    .margin({ bottom: 5 })
-                    .width('100%')
-                }, (step: string, index: number) => index.toString())
+                Button('收起')
+                  .fontSize(AppTheme.FONT_SIZE_SMALL)
+                  .height(28)
+                  .backgroundColor(AppTheme.getCardBackground(this.currentTheme === 'dark'))
+                  .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
+                  .borderRadius(AppTheme.BORDER_RADIUS_LARGE)
+                  .padding({ left: AppTheme.SPACING_NORMAL, right: AppTheme.SPACING_NORMAL })
+                  .onClick(() => {
+                    this.showKeyboard = false;
+                  })
               }
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
-            }
-          }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 不定积分计算器组件
- */
-@Component
-struct IndefiniteIntegralCalculator {
-  @State expression: string = '';
-  @State variable: string = 'x';
-  @State result: IntegralResult | null = null;
-  private engine: CalculusEngine = new CalculusEngine();
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('不定积分计算器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('∫ f(x) dx')
-          .fontSize(16)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Text('被积函数：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          TextInput({ placeholder: '例如: x^2 或 3*x' })
-            .width('100%')
-            .margin({ bottom: 15 })
-            .onChange((value: string) => {
-              this.expression = value;
-            })
-          
-          Text('提示：支持基本的多项式函数')
-            .fontSize(12)
-            .fontColor('#999')
-            .margin({ bottom: 20 })
-          
-          Button('计算')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .onClick(() => {
-              if (!this.expression) {
-                promptAction.showToast({ message: '请输入表达式' });
-                return;
-              }
+              .width('100%')
+              .margin({ bottom: AppTheme.SPACING_SMALL })
               
-              this.result = this.engine.indefiniteIntegral(this.expression, this.variable);
+              MathSymbolKeyboard({ inputText: $latexInput })
+                .width('100%')
+            }
+            .width('100%')
+            .padding({ 
+              left: AppTheme.SPACING_LARGE, 
+              right: AppTheme.SPACING_LARGE, 
+              top: AppTheme.SPACING_NORMAL, 
+              bottom: AppTheme.SPACING_NORMAL 
             })
-        }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
-        .margin({ bottom: 20 })
-        
-        // 结果显示
-        if (this.result !== null) {
+            .backgroundColor(this.currentTheme === 'dark' ? AppTheme.CARD_BG_DARK : '#F9F9F9')
+            .borderRadius(AppTheme.BORDER_RADIUS_MEDIUM)
+            .margin({ bottom: AppTheme.SPACING_MEDIUM })
+            .animation({
+              duration: AppTheme.ANIMATION_DURATION_SLOW,
+              curve: Curve.EaseInOut
+            })
+          }
+
+          // 引导式输入按钮
           Column() {
-            Text('计算结果')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 15 })
-            
-            if (this.result.success) {
-              Text(`∫ ${this.expression} d${this.variable} = ${this.result.integral}`)
-                .fontSize(16)
-                .fontColor('#52c41a')
-                .margin({ bottom: 10 })
-              
-              if (this.result.steps && this.result.steps.length > 0) {
-                Text('计算步骤：')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ top: 10, bottom: 5 })
-                
-                ForEach(this.result.steps, (step: string, index: number) => {
-                  Text(`${index + 1}. ${step}`)
-                    .fontSize(14)
-                    .fontColor('#666')
-                    .margin({ bottom: 5 })
-                    .width('100%')
-                }, (step: string, index: number) => index.toString())
-              }
-            } else {
-              Text('错误：' + (this.result.error || '未知错误'))
-                .fontSize(16)
-                .fontColor('#f5222d')
+            Row() {
+              Text('引导式输入')
+                .fontSize(AppTheme.FONT_SIZE_MEDIUM)
+                .fontColor(AppTheme.getSecondaryTextColor(this.currentTheme === 'dark'))
+                .margin({ bottom: AppTheme.SPACING_SMALL })
             }
+            .width('100%')
+            
+            Scroll() {
+              Row() {
+                this.buildGuidedInputButton('定积分 ∫ᵃᵇ', InputType.DEFINITE_INTEGRAL)
+                this.buildGuidedInputButton('不定积分 ∫', InputType.INDEFINITE_INTEGRAL)
+                this.buildGuidedInputButton('导数 d/dx', InputType.DERIVATIVE)
+                this.buildGuidedInputButton('极限 lim', InputType.LIMIT)
+                this.buildGuidedInputButton('偏导数 ∂/∂x', InputType.PARTIAL_DERIVATIVE)
+              }
+            }
+            .scrollable(ScrollDirection.Horizontal)
+            .scrollBar(BarState.Off)
+            .width('100%')
           }
-          .width('90%')
-          .padding(20)
-          .backgroundColor('#fff')
-          .borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
-        }
-      }
-      .width('100%')
-      .padding(20)
-    }
-    .width('100%')
-    .layoutWeight(1)
-  }
-}
-
-/**
- * 极限计算器组件
- */
-@Component
-struct LimitCalculator {
-  @State expression: string = '';
-  @State variable: string = 'x';
-  @State approachValue: string = '';
-  
-  build() {
-    Scroll() {
-      Column() {
-        Text('极限计算器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('lim f(x) as x → a')
-          .fontSize(16)
-          .fontColor('#666')
+          .width('100%')
+          .padding({ left: AppTheme.SPACING_LARGE, right: AppTheme.SPACING_LARGE })
+          .margin({ bottom: AppTheme.SPACING_MEDIUM })
+          
+          // 操作类型选择提示
+          if (!this.selectedFunction && this.latexInput) {
+            Row() {
+              Text('👉 请选择下方的计算类型（如求导、积分）以继续')
+                .fontSize(13)
+                .fontColor('#FF6B00')
+                .fontWeight(FontWeight.Medium)
+            }
+            .width('100%')
+            .padding({ left: 20, right: 20 })
+            .margin({ bottom: 10 })
+          }
+          
+          // 快捷功能按钮
+          Row() {
+            ForEach(this.functionButtons, (btn: string) => {
+              Button(btn)
+                .fontSize(14)
+                .height(40)
+                .backgroundColor(this.selectedFunction === btn ? '#1890FF' : '#F0F0F0')
+                .fontColor(this.selectedFunction === btn ? '#FFFFFF' : '#333333')
+                .borderRadius(20)
+                .layoutWeight(1)
+                .border({
+                  width: this.selectedFunction === btn ? 2 : 0,
+                  color: '#1890FF'
+                })
+                .animation({
+                  duration: 200,
+                  curve: Curve.EaseInOut
+                })
+                .onClick(() => {
+                  this.selectedFunction = btn;
+                  this.errorMessage = '';
+                  Logger.info(`Selected function: ${btn}`);
+                })
+            }, (btn: string) => btn)
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20 })
+          .justifyContent(FlexAlign.SpaceBetween)
           .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Text('函数表达式：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          TextInput({ placeholder: '例如: (x^2 - 1)/(x - 1)' })
-            .width('100%')
-            .margin({ bottom: 15 })
-            .onChange((value: string) => {
-              this.expression = value;
-            })
+
+          // 计算按钮和清除按钮
+          Row() {
+            Button('清除')
+              .width(100)
+              .height(56)
+              .fontSize(16)
+              .backgroundColor('#FF6B6B')
+              .fontColor('#FFFFFF')
+              .borderRadius(28)
+              .onClick(() => {
+                this.clearAll();
+              })
+            
+            Blank()
+            
+            Button('计算')
+              .layoutWeight(1)
+              .height(56)
+              .fontSize(16)
+              .backgroundColor('#52C41A')
+              .fontColor('#FFFFFF')
+              .borderRadius(28)
+              .margin({ left: 12 })
+              .onClick(() => {
+                this.calculate();
+              })
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20 })
+          .margin({ bottom: 24 })
           
-          Text(`${this.variable} 趋向于：`)
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          TextInput({ placeholder: '例如: 0' })
+          // 错误提示（人性化改进）
+          if (this.errorMessage) {
+            Column() {
+              Row() {
+                Text('💡 ')
+                  .fontSize(16)
+                Text('温馨提示')
+                  .fontSize(14)
+                  .fontColor('#FF4D4F')
+                  .fontWeight(FontWeight.Bold)
+              }
+              .width('100%')
+              .margin({ bottom: 8 })
+              
+              Text(this.errorMessage)
+                .fontSize(14)
+                .fontColor('#333')
+                .lineHeight(22)
+                .width('100%')
+              
+              // 如果是极限不存在，添加额外说明
+              if (this.errorMessage.includes('DNE') || this.errorMessage.includes('不存在')) {
+                Column() {
+                  Text('💭 这是什么意思？')
+                    .fontSize(13)
+                    .fontColor('#666')
+                    .fontWeight(FontWeight.Medium)
+                    .margin({ top: 12, bottom: 6 })
+                  
+                  Text('DNE = Does Not Exist，表示极限不存在。这通常发生在函数振荡、左右极限不等或趋向不同无穷大的情况。')
+                    .fontSize(12)
+                    .fontColor('#999')
+                    .lineHeight(18)
+                }
+                .width('100%')
+                .padding(10)
+                .backgroundColor('#FFF7E6')
+                .borderRadius(6)
+                .margin({ top: 8 })
+              }
+            }
             .width('100%')
-            .type(InputType.Number)
-            .margin({ bottom: 20 })
-            .onChange((value: string) => {
-              this.approachValue = value;
-            })
-          
-          Text('提示：该功能需要更完善的数学库支持')
-            .fontSize(12)
-            .fontColor('#ff9800')
-            .margin({ bottom: 15 })
-          
-          Button('计算')
+            .padding({ left: 20, right: 20, top: 16, bottom: 16 })
+            .backgroundColor('#FFF1F0')
+            .borderRadius(12)
+            .border({ width: 2, color: '#FFCCC7' })
+            .margin({ left: 20, right: 20, bottom: 16 })
+          }
+
+          // 解题步骤区域（人性化改进）
+          if (this.showSteps && this.steps.length > 0) {
+            Column() {
+              Row() {
+                Text('📚 ')
+                  .fontSize(18)
+                Text('详细解题步骤')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#333333')
+              }
+              .width('100%')
+              .margin({ bottom: 16 })
+
+              Column() {
+                ForEach(this.steps, (step: string, index: number) => {
+                  this.buildEnhancedStepItem(step, index);
+                }, (step: string, index: number) => `step_${index}`)
+              }
+              .width('100%')
+              .padding(16)
+              .backgroundColor('#F0F9FF')
+              .borderRadius(12)
+              .border({ width: 1, color: '#BAE7FF' })
+            }
             .width('100%')
-            .height(45)
-            .fontSize(16)
-            .backgroundColor('#d9d9d9')
-            .onClick(() => {
-              promptAction.showToast({ message: '极限计算功能开发中...' });
-            })
+            .padding({ left: 20, right: 20 })
+            .margin({ bottom: 24 })
+            .alignItems(HorizontalAlign.Start)
+          }
+
+          // 结果绘制区域
+          if (this.showGraph) {
+            Column() {
+              Row() {
+                Text('结果绘制')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#333333')
+              }
+              .width('100%')
+              .margin({ bottom: 12 })
+
+              // 图形显示区域
+              Column() {
+                Text('📊')
+                  .fontSize(48)
+                  .margin({ bottom: 8 })
+                Text('函数图形将在这里显示')
+                  .fontSize(14)
+                  .fontColor('#999999')
+              }
+              .width('100%')
+              .height(200)
+              .backgroundColor('#F5F5F5')
+              .borderRadius(12)
+              .justifyContent(FlexAlign.Center)
+            }
+            .width('100%')
+            .padding({ left: 20, right: 20 })
+            .margin({ bottom: 24 })
+            .alignItems(HorizontalAlign.Start)
+          }
+
+          // 结果显示
+          if (this.result) {
+            Column() {
+              // 标题栏
+              Row() {
+                Text('✅ ')
+                  .fontSize(18)
+                  .fontColor('#52C41A')
+                
+                Text('计算结果')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#333333')
+              }
+              .width('100%')
+              .margin({ bottom: 16 })
+
+              Column() {
+                // 输入信息卡片
+                Column() {
+                  Row() {
+                    Text('📝 ')
+                      .fontSize(14)
+                    Text('输入信息')
+                      .fontSize(13)
+                      .fontColor('#666')
+                      .fontWeight(FontWeight.Medium)
+                  }
+                  .width('100%')
+                  .margin({ bottom: 8 })
+                  
+                  Row() {
+                    Text('表达式：')
+                      .fontSize(13)
+                      .fontColor('#999')
+                      .width(70)
+                    
+                    Text(this.latexInput)
+                      .fontSize(13)
+                      .fontColor('#333')
+                      .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .margin({ bottom: 6 })
+                  
+                  Row() {
+                    Text('计算类型：')
+                      .fontSize(13)
+                      .fontColor('#999')
+                      .width(70)
+                    
+                    Text(this.selectedFunction)
+                      .fontSize(13)
+                      .fontColor('#1890FF')
+                      .fontWeight(FontWeight.Medium)
+                  }
+                  .width('100%')
+                }
+                .width('100%')
+                .padding(12)
+                .backgroundColor('#F5F5F5')
+                .borderRadius(8)
+                .margin({ bottom: 16 })
+                
+                // 结果卡片
+                Column() {
+                  Row() {
+                    Text('🎯 ')
+                      .fontSize(16)
+                    Text('计算结果')
+                      .fontSize(14)
+                      .fontColor('#52C41A')
+                      .fontWeight(FontWeight.Bold)
+                  }
+                  .width('100%')
+                  .margin({ bottom: 12 })
+                  
+                  // 人性化说明文字
+                  Text(this.result.split('\n')[0])
+                    .fontSize(15)
+                    .fontColor('#333')
+                    .lineHeight(24)
+                    .width('100%')
+                    .margin({ bottom: 12 })
+                  
+                  // 数学公式（如果有）
+                  if (this.result.includes('\n')) {
+                    Column() {
+                      if (this.resultLatex) {
+                        LaTeXRenderer({ latex: this.resultLatex })
+                          .width('100%')
+                      } else {
+                        Text(this.result.split('\n')[1])
+                          .fontSize(16)
+                          .fontColor('#52C41A')
+                          .fontWeight(FontWeight.Bold)
+                          .width('100%')
+                          .textAlign(TextAlign.Center)
+                          .lineHeight(32)
+                      }
+                    }
+                    .width('100%')
+                    .padding(16)
+                    .backgroundColor(AppTheme.getBackgroundColor(this.currentTheme === 'dark'))
+                    .borderRadius(8)
+                    .border({ width: 1, color: '#D9F7BE', style: BorderStyle.Dashed })
+                  }
+                }
+                .width('100%')
+                .padding(16)
+                .backgroundColor('#F6FFED')
+                .borderRadius(12)
+                .border({ width: 2, color: '#B7EB8F' })
+              }
+              .width('100%')
+            }
+            .width('100%')
+            .padding({ left: 20, right: 20 })
+            .margin({ bottom: 40 })
+            .alignItems(HorizontalAlign.Start)
+          }
         }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
+        .width('100%')
       }
-      .width('100%')
-      .padding(20)
+      .layoutWeight(1)
+      .backgroundColor(AppTheme.getBackgroundColor(this.currentTheme === 'dark'))
     }
     .width('100%')
-    .layoutWeight(1)
+    .height('100%')
+    .backgroundColor(AppTheme.getBackgroundColor(this.currentTheme === 'dark'))
   }
-}
-
-/**
- * 泰勒级数计算器组件
- */
-@Component
-struct TaylorSeriesCalculator {
-  @State expression: string = '';
-  @State variable: string = 'x';
-  @State center: string = '0';
-  @State terms: string = '5';
   
-  build() {
-    Scroll() {
+  /**
+   * 构建引导式输入按钮
+   */
+  @Builder buildGuidedInputButton(label: string, inputType: InputType) {
+    Button(label)
+      .fontSize(AppTheme.FONT_SIZE_SMALL)
+      .height(36)
+      .backgroundColor(AppTheme.getCardBackground(this.currentTheme === 'dark'))
+      .fontColor(AppTheme.getPrimaryTextColor(this.currentTheme === 'dark'))
+      .borderRadius(AppTheme.BORDER_RADIUS_LARGE)
+      .padding({ left: AppTheme.SPACING_MEDIUM, right: AppTheme.SPACING_MEDIUM })
+      .margin({ right: AppTheme.SPACING_SMALL })
+      .border({
+        width: 1,
+        color: AppTheme.PRIMARY_COLOR
+      })
+      .onClick(() => {
+        this.showStructuredInput(inputType);
+      })
+  }
+
+  /**
+   * 构建步骤项（保留用于向后兼容）
+   */
+  @Builder buildStepItem(text: string) {
+    Row() {
+      Text(text)
+        .fontSize(14)
+        .fontColor('#333333')
+        .lineHeight(28)
+        .width('100%')
+    }
+    .width('100%')
+    .margin({ top: 6 })
+  }
+  
+  /**
+   * 构建增强的步骤项（人性化改进）
+   */
+  @Builder buildEnhancedStepItem(step: string, index: number) {
+    Row() {
+      // 步骤编号
       Column() {
-        Text('泰勒级数展开')
-          .fontSize(20)
+        Text(`${index + 1}`)
+          .fontSize(12)
+          .fontColor('#FFFFFF')
           .fontWeight(FontWeight.Bold)
-          .margin({ top: 20, bottom: 10 })
-        
-        Text('f(x) ≈ Σ f⁽ⁿ⁾(a)/n! · (x-a)ⁿ')
+      }
+      .width(24)
+      .height(24)
+      .backgroundColor(index === this.steps.length - 1 ? '#52C41A' : '#1890FF')
+      .borderRadius(12)
+      .justifyContent(FlexAlign.Center)
+      .margin({ right: 12 })
+      
+      // 步骤内容
+      Column() {
+        Text(step)
           .fontSize(14)
-          .fontColor('#666')
-          .margin({ bottom: 20 })
-        
-        // 输入区域
-        Column() {
-          Text('函数表达式：')
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .margin({ bottom: 5 })
-          TextInput({ placeholder: '例如: sin(x) 或 exp(x)' })
-            .width('100%')
-            .margin({ bottom: 15 })
-            .onChange((value: string) => {
-              this.expression = value;
-            })
-          
-          Row() {
-            Column() {
-              Text('展开点 a:')
-                .fontSize(14)
-                .margin({ bottom: 5 })
-              TextInput({ placeholder: '通常为 0' })
-                .type(InputType.Number)
-                .onChange((value: string) => {
-                  this.center = value;
-                })
-            }
-            .layoutWeight(1)
-            .margin({ right: 10 })
-            
-            Column() {
-              Text('项数:')
-                .fontSize(14)
-                .margin({ bottom: 5 })
-              TextInput({ placeholder: '通常 5-10' })
-                .type(InputType.Number)
-                .onChange((value: string) => {
-                  this.terms = value;
-                })
-            }
-            .layoutWeight(1)
-          }
+          .fontColor('#333')
+          .lineHeight(22)
           .width('100%')
-          .margin({ bottom: 20 })
-          
-          Text('提示：该功能需要更完善的数学库支持')
+        
+        // 如果是最后一步，添加特殊标记
+        if (index === this.steps.length - 1 && step.includes('结果')) {
+          Text('✨ 计算完成')
             .fontSize(12)
-            .fontColor('#ff9800')
-            .margin({ bottom: 15 })
-          
-          Button('计算')
-            .width('100%')
-            .height(45)
-            .fontSize(16)
-            .backgroundColor('#d9d9d9')
-            .onClick(() => {
-              promptAction.showToast({ message: '泰勒展开功能开发中...' });
-            })
+            .fontColor('#52C41A')
+            .fontWeight(FontWeight.Medium)
+            .margin({ top: 4 })
         }
-        .width('90%')
-        .padding(20)
-        .backgroundColor('#fff')
-        .borderRadius(12)
       }
-      .width('100%')
-      .padding(20)
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
-    .layoutWeight(1)
+    .padding(12)
+    .backgroundColor(index === this.steps.length - 1 ? '#F6FFED' : '#FFFFFF')
+    .borderRadius(8)
+    .margin({ bottom: index < this.steps.length - 1 ? 8 : 0 })
+    .border({
+      width: 1,
+      color: index === this.steps.length - 1 ? '#B7EB8F' : '#E8F4FF'
+    })
+  }
+
+  /**
+   * 显示结构化输入对话框
+   */
+  showStructuredInput(inputType: InputType) {
+    this.structuredInputDialogController = new CustomDialogController({
+      builder: StructuredInputDialog({
+        inputType: inputType,
+        onConfirm: (result: StructuredInputResult) => {
+          if (result.success) {
+            this.latexInput = result.expression;
+            this.structuredData = result.data || null;
+            
+            // 自动选择对应的计算类型
+            switch (inputType) {
+              case InputType.DEFINITE_INTEGRAL:
+              case InputType.INDEFINITE_INTEGRAL:
+                this.selectedFunction = '积分';
+                break;
+              case InputType.DERIVATIVE:
+              case InputType.PARTIAL_DERIVATIVE:
+                this.selectedFunction = '求导';
+                break;
+              case InputType.LIMIT:
+                this.selectedFunction = '极限';
+                break;
+            }
+            
+            promptAction.showToast({
+              message: '输入完成，点击计算按钮开始计算'
+            });
+          }
+        }
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      customStyle: true
+    });
+    
+    this.structuredInputDialogController.open();
+  }
+  
+  /**
+   * 实时验证输入
+   */
+  validateInputRealtime(input: string) {
+    this.inputValidationMessage = '';
+    
+    if (!input || input.trim() === '') {
+      return;
+    }
+    
+    // 检查括号匹配
+    const openParens = (input.match(/\(/g) || []).length;
+    const closeParens = (input.match(/\)/g) || []).length;
+    if (openParens !== closeParens) {
+      this.inputValidationMessage = '括号不匹配';
+      return;
+    }
+    
+    // 检查常见错误
+    if (input.includes('//')) {
+      this.inputValidationMessage = '包含连续除号';
+      return;
+    }
+    
+    if (input.includes('**')) {
+      this.inputValidationMessage = '幂运算请使用 ^ 符号';
+      return;
+    }
+    
+    // 检查是否包含未定义的字符
+    const validChars = /^[a-zA-Z0-9+\-*/^().,\s\[\]πe∫∂√∑∏αβγδεθλμσφω<>=!]+$/;
+    if (!validChars.test(input)) {
+      this.inputValidationMessage = '包含不支持的字符';
+      return;
+    }
+    
+    // 验证通过
+    this.inputValidationMessage = '输入格式正确 ✓';
+  }
+  
+  /**
+   * 清除所有内容
+   */
+  clearAll() {
+    this.latexInput = '';
+    this.result = '';
+    this.resultLatex = '';
+    this.steps = [];
+    this.showSteps = false;
+    this.showGraph = false;
+    this.errorMessage = '';
+    this.inputValidationMessage = '';
+    this.selectedFunction = '';
+    this.structuredData = null;
+    
+    promptAction.showToast({
+      message: '已清除'
+    });
+  }
+
+  /**
+   * 计算
+   */
+  calculate() {
+    // 重置状态
+    this.result = '';
+    this.resultLatex = '';
+    this.steps = [];
+    this.showSteps = false;
+    this.showGraph = false;
+    this.errorMessage = '';
+    
+    // 验证输入
+    if (!this.latexInput || this.latexInput.trim() === '') {
+      this.errorMessage = '请输入公式';
+      promptAction.showToast({
+        message: '请输入公式'
+      });
+      return;
+    }
+
+    if (!this.selectedFunction) {
+      this.errorMessage = '请选择计算类型';
+      promptAction.showToast({
+        message: '请选择计算类型'
+      });
+      return;
+    }
+
+    Logger.info(`Calculating: ${this.latexInput} with function: ${this.selectedFunction}`);
+    
+    try {
+      switch (this.selectedFunction) {
+        case '求导':
+          this.calculateDerivative();
+          break;
+        case '积分':
+          this.calculateIntegral();
+          break;
+        case '极限':
+          this.calculateLimit();
+          break;
+        case '方程':
+          this.solveEquation();
+          break;
+        default:
+          this.errorMessage = '未知的计算类型';
+      }
+      
+      if (this.result) {
+        promptAction.showToast({
+          message: '计算完成'
+        });
+      }
+    } catch (error) {
+      Logger.error('Calculation error', error);
+      this.errorMessage = '计算出错，请检查输入格式';
+      promptAction.showToast({
+        message: '计算出错'
+      });
+    }
+  }
+  
+  /**
+   * 保存到历史记录
+   */
+  private async saveToHistory(expression: string, result: string, category: string) {
+    try {
+      await this.dataManager.saveHistory({
+        expression,
+        result,
+        calc_type: category,
+        category: category
+      });
+      Logger.info(`Saved to history: ${category}`);
+    } catch (error) {
+      Logger.error('Failed to save history', error);
+    }
+  }
+
+  /**
+   * 计算导数
+   */
+  private calculateDerivative() {
+    const expression: string = this.latexInput.trim();
+    const variable: string = this.structuredData?.variable || 'x';
+    const order: number = this.structuredData?.order || 1;
+    
+    let result: DerivativeResult;
+    
+    // 根据阶数计算导数
+    if (order === 1) {
+      result = this.calculusEngine.symbolicDerivative(expression, variable);
+    } else {
+      // 高阶导数：连续求导
+      result = this.calculusEngine.symbolicDerivative(expression, variable);
+      for (let i = 1; i < order && result.success; i++) {
+        result = this.calculusEngine.symbolicDerivative(result.derivative || expression, variable);
+      }
+    }
+    
+    if (result.success && result.derivative) {
+      // 使用数学符号美化显示
+      const orderSymbol = order === 1 ? "'" : order === 2 ? "''" : `^(${order})`;
+      this.result = `f${orderSymbol}(${variable}) = ${this.beautifyMathExpression(result.derivative)}`;
+      
+      // 生成LaTeX
+      this.resultLatex = `f${orderSymbol}(${variable}) = ${this.toLatex(result.derivative)}`;
+      
+      // 生成详细步骤
+      this.steps = [
+        `原函数: f(${variable}) = ${expression}`,
+        `求 ${order} 阶导数`,
+        ...(result.steps || []),
+        `最终结果: f${orderSymbol}(${variable}) = ${result.derivative}`
+      ];
+      this.showSteps = true;
+      
+      // 保存到历史记录
+      this.saveToHistory(expression, result.derivative, 'derivative');
+    } else {
+      this.errorMessage = result.error || '求导失败';
+    }
+  }
+  
+  /**
+   * 计算积分
+   */
+  private calculateIntegral() {
+    const expression: string = this.latexInput.trim();
+    const variable: string = this.structuredData?.variable || 'x';
+    
+    // 检查是否为定积分（包含积分限）
+    const definiteMatch: RegExpMatchArray | null = expression.match(/\[([^,]+),\s*([^\]]+)\]/);
+    
+    if (definiteMatch || this.structuredData?.lowerLimit) {
+      // 定积分
+      const from: string = this.structuredData?.lowerLimit || definiteMatch![1];
+      const to: string = this.structuredData?.upperLimit || definiteMatch![2];
+      let expr: string = this.structuredData?.function || expression.replace(/\[.*?\]/, '').trim();
+      
+      // 预处理表达式：移除可能的空格和特殊字符
+      expr = expr.trim();
+      
+      // 解析数值
+      const fromNum = this.parseValue(from);
+      const toNum = this.parseValue(to);
+      
+      Logger.info(`Calculating definite integral: ∫[${from}, ${to}] ${expr} d${variable}`);
+      Logger.info(`Parsed limits: from=${fromNum}, to=${toNum}`);
+      
+      const result: IntegralResult = this.calculusEngine.definiteIntegral(expr, variable, fromNum, toNum);
+      
+      if (result.success && result.value !== undefined) {
+        // 生成人性化的结果说明
+        const fromStr = from === 'π' || from === 'pi' ? 'π' : from;
+        const toStr = to === 'π' || to === 'pi' ? 'π' : to;
+        
+        const explanation = `计算从 ${fromStr} 到 ${toStr} 的定积分，结果约为 ${result.value.toFixed(6)}`;
+        const formula = `\n∫[${fromStr}, ${toStr}] ${this.beautifyMathExpression(expr)} d${variable} ≈ ${result.value.toFixed(6)}`;
+        
+        this.result = explanation + formula;
+        
+        // 生成LaTeX
+        this.resultLatex = `\\int_{${fromStr}}^{${toStr}} ${this.toLatex(expr)} \\, d${variable} \\approx ${result.value.toFixed(6)}`;
+        
+        // 使用引擎返回的步骤
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      } else {
+        this.errorMessage = result.error || '积分计算失败';
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      }
+    } else {
+      // 不定积分
+      const expr: string = this.structuredData?.function || expression;
+      const result: IntegralResult = this.calculusEngine.indefiniteIntegral(expr, variable);
+      
+      if (result.success && result.integral) {
+        const explanation = `函数 ${expr} 的不定积分为：`;
+        const formula = `\n∫ ${this.beautifyMathExpression(expr)} d${variable} = ${this.beautifyMathExpression(result.integral)} + C`;
+        
+        this.result = explanation + formula;
+        
+        // 生成LaTeX
+        this.resultLatex = `\\int ${this.toLatex(expr)} \\, d${variable} = ${this.toLatex(result.integral)} + C`;
+        
+        // 使用引擎返回的步骤
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      } else {
+        this.errorMessage = result.error || '积分计算失败';
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      }
+    }
+  }
+  
+  /**
+   * 解析数值（支持π、∞等常数）
+   */
+  private parseValue(value: string): number {
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === 'π' || trimmed === 'pi') {
+      return Math.PI;
+    }
+    if (trimmed === 'e') {
+      return Math.E;
+    }
+    if (trimmed === '∞' || trimmed === 'inf' || trimmed === 'infinity') {
+      return Infinity;
+    }
+    if (trimmed === '-∞' || trimmed === '-inf' || trimmed === '-infinity') {
+      return -Infinity;
+    }
+    return parseFloat(trimmed);
+  }
+  
+  /**
+   * 计算极限
+   */
+  private calculateLimit() {
+    const expression: string = this.latexInput.trim();
+    const variable: string = this.structuredData?.variable || 'x';
+    
+    let expr: string;
+    let approachValue: number;
+    let direction: string = this.structuredData?.direction || 'both';
+    
+    if (this.structuredData?.function) {
+      // 使用结构化输入数据
+      expr = this.structuredData.function;
+      approachValue = this.parseValue(this.structuredData.approachValue || '0');
+    } else {
+      // 简单解析极限表达式，例如: "x^2, x->2"
+      const parts: string[] = expression.split(',');
+      if (parts.length < 2) {
+        this.errorMessage = '请使用格式: 表达式, x->值 (例如: x^2, x->2) 或使用引导式输入';
+        return;
+      }
+      
+      expr = parts[0].trim();
+      const limitPart: string = parts[1].trim();
+      const limitMatch: RegExpMatchArray | null = limitPart.match(/([a-zA-Z])\s*->\s*([^\s]+)/);
+      
+      if (!limitMatch) {
+        this.errorMessage = '极限格式错误，请使用 x->值';
+        return;
+      }
+      
+      approachValue = this.parseValue(limitMatch[2]);
+    }
+    
+    const result: LimitResult = this.calculusEngine.limit(expr, variable, approachValue);
+    
+    if (result.success && result.limit !== undefined) {
+      const directionSymbol = direction === 'left' ? '⁻' : direction === 'right' ? '⁺' : '';
+      const approachStr = approachValue === Infinity ? '∞' : approachValue.toString();
+      
+      // 生成人性化的结果说明
+      const humanReadableResult = this.generateHumanReadableLimitResult(expr, variable, approachStr, result.limit);
+      
+      this.result = humanReadableResult;
+      
+      // 生成LaTeX
+      this.resultLatex = `\\lim_{${variable} \\to ${approachStr}${directionSymbol}} ${this.toLatex(expr)} = ${result.limit}`;
+      
+      // 生成详细步骤
+      this.steps = result.steps || [];
+      this.showSteps = true;
+    } else {
+      this.errorMessage = result.error || '极限计算失败';
+      this.steps = result.steps || [];
+      this.showSteps = true;
+    }
+  }
+  
+  /**
+   * 生成人性化的极限结果说明
+   */
+  private generateHumanReadableLimitResult(expr: string, variable: string, approachStr: string, limitValue: string): string {
+    let explanation = '';
+    
+    // 根据极限值生成不同的说明
+    if (limitValue === '+∞') {
+      explanation = `当 ${variable} 趋向 ${approachStr} 时，函数 ${expr} 趋向正无穷大 (+∞)`;
+    } else if (limitValue === '-∞') {
+      explanation = `当 ${variable} 趋向 ${approachStr} 时，函数 ${expr} 趋向负无穷大 (-∞)`;
+    } else if (limitValue === '0' || limitValue === '0.000000') {
+      explanation = `当 ${variable} 趋向 ${approachStr} 时，函数 ${expr} 趋向 0`;
+    } else if (limitValue === '1' || limitValue === '1.000000') {
+      explanation = `当 ${variable} 趋向 ${approachStr} 时，函数 ${expr} 趋向 1`;
+    } else {
+      explanation = `当 ${variable} 趋向 ${approachStr} 时，函数 ${expr} 趋向 ${limitValue}`;
+    }
+    
+    // 添加数学公式
+    const formula = `\nlim(${variable}→${approachStr}) ${this.beautifyMathExpression(expr)} = ${limitValue}`;
+    
+    return explanation + formula;
+  }
+  
+  /**
+   * 美化数学表达式显示
+   */
+  private beautifyMathExpression(expr: string): string {
+    let beautified = expr;
+    
+    // 替换幂运算符为上标符号
+    beautified = beautified.replace(/\^2/g, '²');
+    beautified = beautified.replace(/\^3/g, '³');
+    beautified = beautified.replace(/\^(\d+)/g, '^$1');
+    
+    // 替换乘号
+    beautified = beautified.replace(/\*/g, '·');
+    
+    // 替换除号
+    beautified = beautified.replace(/\//g, '÷');
+    
+    return beautified;
+  }
+  
+  /**
+   * 转换为LaTeX格式
+   */
+  private toLatex(expr: string): string {
+    let latex = expr;
+    
+    // 替换幂运算
+    latex = latex.replace(/\^(\d+)/g, '^{$1}');
+    latex = latex.replace(/\^([a-zA-Z])/g, '^{$1}');
+    
+    // 替换分数
+    latex = latex.replace(/\(([^)]+)\)\/\(([^)]+)\)/g, '\\frac{$1}{$2}');
+    
+    // 替换函数
+    latex = latex.replace(/sqrt\(/g, '\\sqrt{');
+    latex = latex.replace(/sin\(/g, '\\sin(');
+    latex = latex.replace(/cos\(/g, '\\cos(');
+    latex = latex.replace(/tan\(/g, '\\tan(');
+    latex = latex.replace(/log\(/g, '\\log(');
+    latex = latex.replace(/ln\(/g, '\\ln(');
+    latex = latex.replace(/exp\(/g, '\\exp(');
+    
+    // 替换常数
+    latex = latex.replace(/π/g, '\\pi');
+    latex = latex.replace(/pi/g, '\\pi');
+    
+    return latex;
+  }
+  
+  /**
+   * 求解方程
+   */
+  private solveEquation() {
+    const expression = this.latexInput.trim();
+    
+    // 解析方程类型
+    // 一元二次方程: ax^2 + bx + c = 0
+    const quadraticMatch = expression.match(/(-?\d*)\*?x\^2\s*([+-]?\s*\d*)\*?x?\s*([+-]?\s*\d+)\s*=\s*0/);
+    
+    if (quadraticMatch) {
+      const a = parseFloat(quadraticMatch[1] || '1');
+      const b = parseFloat(quadraticMatch[2]?.replace(/\s/g, '') || '0');
+      const c = parseFloat(quadraticMatch[3]?.replace(/\s/g, '') || '0');
+      
+      const result: SolveResult = this.equationSolver.solveQuadratic(a, b, c);
+      
+      if (result.success && result.solutions) {
+        if (result.solutions.length === 1) {
+          this.result = `x = ${result.solutions[0]}`;
+        } else {
+          this.result = `x₁ = ${result.solutions[0]}\nx₂ = ${result.solutions[1]}`;
+        }
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      } else {
+        this.errorMessage = result.error || '方程求解失败';
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      }
+      return;
+    }
+    
+    // 一元一次方程: ax + b = 0
+    const linearMatch = expression.match(/(-?\d*)\*?x\s*([+-]?\s*\d+)\s*=\s*0/);
+    
+    if (linearMatch) {
+      const a = parseFloat(linearMatch[1] || '1');
+      const b = parseFloat(linearMatch[2]?.replace(/\s/g, '') || '0');
+      
+      const result: SolveResult = this.equationSolver.solveLinear(a, b);
+      
+      if (result.success && result.solutions) {
+        this.result = `x = ${result.solutions[0]}`;
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      } else {
+        this.errorMessage = result.error || '方程求解失败';
+        this.steps = result.steps || [];
+        this.showSteps = true;
+      }
+      return;
+    }
+    
+    this.errorMessage = '暂不支持该类型方程，请使用标准格式 (例如: x^2 + 2*x + 1 = 0)';
   }
 }
-
