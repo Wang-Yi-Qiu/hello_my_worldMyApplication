@@ -1,47 +1,32 @@
-/node_modules
-/oh_modules
-/local.properties
-/.idea
-**/build
-/.hvigor
-.cxx
-/.clangd
-/.clang-format
-/.clang-tidy
-**/.test
-/.appanalyzer
+# 构建输出
+entry/build/
+.hvigor/
+entry/.preview/
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.bak
-*~
-
-# Environment files
-.env
-.env.*
-!.env.example
-
-# OS specific
+# 系统文件
 .DS_Store
 Thumbs.db
 
-# IDE
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.cache
+*.bak
+*.swp
+*.swo
+*~
+
+# IDE 文件
 .vscode/
+.idea/
 *.iml
 
-# Test coverage
+# 依赖目录
+node_modules/
+oh_modules/
+
+# 测试输出
+test-results/
 coverage/
-.nyc_output/
-
-# Build artifacts
-dist/
-out/
-*.hap
-*.app
-
-# Database files
-*.db
-*.sqlite
-*.db-journal

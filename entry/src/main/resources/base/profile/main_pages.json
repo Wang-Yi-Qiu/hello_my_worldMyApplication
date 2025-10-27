@@ -2,7 +2,8 @@
   "src": [
     "pages/Index",
     "pages/MainPage",
-    "pages/ImageOCRPage",
-    "pages/CameraPage"
+    "pages/CalculatorPage",
+    "pages/HistoryPage",
+    "pages/SettingsPage"
   ]
 }
