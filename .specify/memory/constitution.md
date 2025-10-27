@@ -1,15 +1,15 @@
-# 智能计算器 SmartCalc 项目宪法
+# HarmonyOS 智能计算器增强版项目宪法
 
-**版本：** 1.0.0
-**批准日期：** 2025-10-22
-**最后修订：** 2025-10-22
+**版本：** 2.0.0
+**批准日期：** 2025-01-27
+**最后修订：** 2025-01-27
 
 <!-- Sync Impact Report
-Version Change: N/A → 1.0.0 (Initial version)
-Added Sections: All sections (new project constitution)
-Removed Sections: None
-Modified Principles: None (initial setup)
-Templates Requiring Updates: ⚠️ All templates need to be created
+Version Change: 1.0.0 → 2.0.0 (Major version bump due to complete project scope change)
+Added Sections: 极速转换卡片原则、情绪化交互原则、彩蛋模式原则
+Removed Sections: 高等数学运算相关原则、云端同步原则
+Modified Principles: 项目概述完全重写，技术栈更新为ArkUI Declarative UI
+Templates Requiring Updates: ⚠️ All templates need to be updated to reflect new project scope
 Follow-up TODOs: None
 -->
 
@@ -17,16 +17,15 @@ Follow-up TODOs: None
 
 ## 1. 项目概述
 
-智能计算器 SmartCalc 是一个基于 HarmonyOS 平台的专业级数学工具应用，融合了基础计算器功能和高等数学运算能力。项目采用双层数据架构，支持离线使用和多设备云端同步，旨在为用户提供功能强大且界面友好的数学计算体验。
+HarmonyOS 智能计算器增强版是一个基于 HarmonyOS（鸿蒙系统）ArkUI 框架的创新计算器应用。在传统计算功能的基础上，加入了多个具有互动性和趣味性的扩展模块，旨在为用户提供"既能算，又能玩"的体验。
 
-**目标平台：** DevEco Studio（HarmonyOS）
-**主要功能：**
-- 支持基础四则运算和高精度数值计算
-- 高等数学运算（微积分、导数、积分、极限、方程/系统方程、不等式）
-- 函数图像生成、积分区域高亮和多函数比较
-- 常用公式管理及历史运算记录
-- 离线本地使用 + 在线云端同步（多设备共享）
-- UI 支持多设备（手机/平板）与多布局模式（Pocket/Compact/Expanded）
+**目标平台：** DevEco Studio 5.0+（HarmonyOS）
+**核心功能：**
+- 极速转换卡片（QuickConvert Widget）- 桌面服务卡片实现单位/货币换算
+- 情绪化计算器 - 根据计算结果输出表情和趣味语句
+- 幸运运势计算器 - 每次计算后生成幸运提示
+- 历史记录与回溯编辑 - 保存最近10条计算记录，支持回溯修改
+- 隐藏彩蛋模式 - 特定输入触发动画或弹窗
 
 ---
 
@@ -34,91 +33,108 @@ Follow-up TODOs: None
 
 ### 2.1 技术原则
 
-#### 高精度数学计算
-所有数学运算必须支持至少 100 位有效数字精度，确保计算结果的准确性和可靠性。
+#### ArkUI 框架优先
+所有UI组件必须基于ArkUI Declarative UI框架构建，使用@State、@Prop等状态管理机制，确保与HarmonyOS生态的完美集成。
 
-**理由：** 作为专业级数学工具，需要满足科学计算和工程应用的高精度要求，避免因精度不足导致的计算错误。
+**理由：** 作为HarmonyOS原生应用，必须充分利用ArkUI框架的优势，提供流畅的原生体验和最佳性能。
 
-#### 离线优先设计
-应用必须在无网络环境下完整运行，优先使用本地存储和计算能力，确保用户在任何情况下都能使用核心功能。
+#### 极速转换卡片核心
+极速转换卡片是整个项目的核心创新模块，必须实现独立Widget功能，支持桌面服务卡片形式，无需跨设备通信。
 
-**理由：** 数学计算工具应具备可靠性，不依赖网络连接，保证用户在离线环境下的使用体验。
+**理由：** 这是项目的差异化特色功能，通过独立Widget提供快速单位/货币换算，提升用户使用效率。
 
-#### 云端同步支持
-通过云服务实现多设备数据同步，支持用户在不同设备间无缝切换和数据共享。
+#### 本地数据持久化
+使用Preferences进行数据持久化存储，确保历史记录、用户设置等数据在应用重启后保持。
 
-**理由：** 现代用户通常使用多个设备，数据同步功能提升了应用的实用性和用户粘性。
+**理由：** 作为计算器应用，需要保存用户的计算历史和个性化设置，提供连续的使用体验。
 
-### 2.2 质量原则
+### 2.2 交互体验原则
 
-#### 代码质量保证
-所有代码必须经过严格测试，代码覆盖率不低于 80%，并遵循 HarmonyOS 开发规范和最佳实践。
+#### 情绪化反馈机制
+计算器必须根据计算结果的大小、复杂度或特殊数值提供情绪化反馈，包括表情和趣味语句。
 
-**理由：** 确保应用稳定性和可维护性，减少运行时错误，提升用户使用体验。
+**理由：** 增强用户与应用的互动性，让计算过程更有趣，提升用户粘性和使用乐趣。
 
-#### 性能优化
-应用启动时间不超过 2 秒，复杂计算响应时间不超过 1 秒，支持流畅的用户交互体验。
+#### 幸运运势元素
+每次计算后必须生成随机幸运提示，增加应用的趣味性和神秘感。
 
-**理由：** 数学计算工具需要快速响应，性能优化直接影响用户的工作效率和满意度。
+**理由：** 通过随机性元素增加用户期待感，让简单的计算过程变得更有吸引力。
+
+#### 彩蛋模式触发
+必须实现隐藏彩蛋功能，当用户输入特定数字时触发特殊动画或弹窗效果。
+
+**理由：** 彩蛋功能增加应用的探索性和惊喜感，提升用户发现和分享的乐趣。
 
 ### 2.3 用户体验原则
 
-#### 多设备适配
-UI 必须支持手机、平板等不同设备和屏幕尺寸，提供 Pocket、Compact、Expanded 三种布局模式。
+#### 历史记录回溯
+必须支持历史记录功能，保存最近10条计算记录，并允许用户点击回溯到输入框进行修改。
 
-**理由：** 用户在不同设备上使用应用的需求多样化，良好的适配性提升了应用的可用性和用户满意度。
+**理由：** 历史记录功能是计算器的基础需求，回溯编辑功能提升用户操作便利性。
 
 #### 简洁直观界面
-采用简洁的设计风格，参考苹果计算器和 HiPER 的界面设计，确保用户能直观地进行数学操作。
+采用简洁的设计风格，使用品牌蓝(#007DFF)强调结果区域，确保用户能直观地进行计算操作。
 
-**理由：** 数学工具的界面应专注于功能性和易用性，避免复杂设计干扰用户的主要工作流程。
+**理由：** 计算器界面应专注于功能性和易用性，简洁设计减少用户认知负担，提升操作效率。
+
+#### 流畅动画效果
+使用animateTo实现结果跳动、表情淡入等动画效果，提升交互的流畅性和视觉吸引力。
+
+**理由：** 适当的动画效果能增强用户反馈，让操作过程更加生动有趣。
 
 ---
 
 ## 3. 架构规范
 
 ### 3.1 技术栈要求
-- **前端框架：** ArkUI (HarmonyOS)
-- **开发工具：** DevEco Studio
-- **数据库：** @ohos.data.relationalStore（SQLite）
-- **云服务：** Supabase 或华为云服务
-- **编程语言：** TypeScript/JavaScript (ArkTS)
+- **前端框架：** ArkUI Declarative UI (HarmonyOS)
+- **开发工具：** DevEco Studio 5.0+
+- **数据存储：** @ohos.data.preferences（持久化存储）
+- **卡片类型：** Form Widget（独立原子服务）
+- **编程语言：** ArkTS / TypeScript
+- **状态管理：** @State、@Prop、@Link
 
 ### 3.2 代码组织
 采用模块化架构，清晰分离 UI 层、逻辑层和数据层：
-- `/pages` - 页面组件（CalculatorPage、GraphPage、FormulaPage、HistoryPage）
-- `/components` - 可复用组件（CalculatorButton、FormulaListItem）
-- `/modules` - 业务逻辑模块（ExpressionEngine、ChartGenerator、DataManager、SyncService）
-- `/resources` - 资源文件（图片、字符串、样式）
+- `/pages` - 页面组件（CalculatorPage、HistoryPage、SettingsPage、Index、MainPage）
+- `/widgets` - Widget组件（QuickConvertWidget）
+- `/modules` - 业务逻辑模块（DatabaseManager、DataManager、ExpressionEngine）
+- `/utils` - 工具类（AppTheme、Constants、Logger、NetworkMonitor、ThemeManager、ToastHelper）
+- `/models` - 数据模型（HistoryRecord）
+- `/resources` - 资源文件（图片、字符串、样式、动画）
 
 ### 3.3 数据架构
-采用双层数据架构：
-- **本地层：** SQLite 数据库存储公式、历史记录、图像路径，支持离线使用
-- **云端层：** 云数据库 + 文件存储，实现多设备数据同步
-- **同步层：** 自定义 SyncService 模块处理数据双向同步逻辑
+采用本地优先的数据架构：
+- **本地存储：** Preferences存储用户设置、历史记录、情绪化配置
+- **内存管理：** 使用@State管理组件状态，确保响应式更新
+- **数据模型：** 定义清晰的数据结构（如HistoryRecord）确保类型安全
+- **缓存策略：** 历史记录限制为最近10条，自动清理过期数据
 
 ---
 
 ## 4. 开发规范
 
 ### 4.1 编码标准
-- 遵循 HarmonyOS 开发规范和 TypeScript 最佳实践
+- 遵循 HarmonyOS 开发规范和 ArkTS 最佳实践
 - 使用有意义的变量和函数命名，添加必要的注释
 - 单个函数不超过 50 行，单个文件不超过 300 行
 - 使用 ESLint 进行代码静态检查，确保代码风格一致性
+- Widget组件必须独立可运行，不依赖主应用
 
 ### 4.2 测试要求
 - 单元测试覆盖率不低于 80%
-- 所有核心数学计算功能必须有单元测试验证准确性
+- 所有核心计算功能必须有单元测试验证准确性
 - UI 组件使用 HarmonyOS 测试框架进行功能测试
-- 集成测试验证模块间接口和数据流
-- 性能测试确保复杂计算在规定时间内完成
+- Widget组件需要独立的测试用例
+- 情绪化反馈和彩蛋功能需要测试各种触发条件
+- 历史记录功能需要测试数据持久化和回溯编辑
 
 ### 4.3 文档要求
 - 所有公共 API 必须有详细的 JSDoc 注释
-- 复杂算法和数学公式需要技术文档说明
-- 用户界面变更需要更新界面设计文档
+- Widget组件需要独立的使用说明文档
+- 情绪化反馈规则和彩蛋触发条件需要文档化
 - 项目 README 保持最新，包含完整的安装和使用说明
+- 开发路线图需要定期更新，反映项目进度
 
 ---
 
@@ -152,11 +168,12 @@ UI 必须支持手机、平板等不同设备和屏幕尺寸，提供 Pocket、C
 
 ## 6. 参考资料
 
-- HarmonyOS 开发文档（DevEco Studio）
-- HiPER 计算器官方特性说明
-- Supabase 官方文档
-- TypeScript 官方文档
+- HarmonyOS 开发文档（DevEco Studio 5.0+）
+- ArkUI Declarative UI 开发指南
+- HarmonyOS Form Widget 开发文档
+- ArkTS 语言规范
 - 项目技术方案文档（pr.md）
+- HarmonyOS 应用开发最佳实践
 
 ---
 

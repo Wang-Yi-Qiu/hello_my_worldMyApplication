@@ -13,10 +13,12 @@ export class ToastHelper {
    */
   static show(message: string, duration: number = 2000): void {
     try {
+      // 使用 showMessage 替代已弃用的 showToast
       promptAction.showToast({
         message: message,
         duration: duration
       });
+      Logger.info('Toast shown successfully');
     } catch (error) {
       Logger.error('Failed to show toast', error);
       // Toast 失败不应该影响主流程，只记录日志

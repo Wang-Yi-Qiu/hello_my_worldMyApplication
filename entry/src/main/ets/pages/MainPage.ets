@@ -14,12 +14,32 @@ import { SettingsPage } from './SettingsPage';
 struct MainPage {
   @State currentIndex: number = 0;
   @StorageLink('currentTheme') currentTheme: string = 'light';
+  @StorageLink('expressionFromHistory') expressionFromHistory: string = '';
   private themeManager: ThemeManager = ThemeManager.getInstance();
 
   aboutToAppear() {
     Logger.info('MainPage loaded');
     // 初始化主题
     AppStorage.setOrCreate('currentTheme', this.themeManager.getCurrentTheme());
+    // 初始化历史记录回溯功能
+    AppStorage.setOrCreate('expressionFromHistory', '');
+    // 初始化历史刷新标记
+    AppStorage.setOrCreate('needRefreshHistory', false);
+    
+    // 监听历史记录回溯，自动切换到计算器
+    this.watchHistoryBackNavigation();
+  }
+
+  private watchHistoryBackNavigation(): void {
+    // 使用定时器监听变化
+    setTimeout(() => {
+      const value = this.expressionFromHistory;
+      if (value && value.trim() !== '') {
+        Logger.info(`Expression from history: ${value}`);
+        // 切换到计算器标签
+        this.currentIndex = 0;
+      }
+    }, 100);
   }
 
   build() {

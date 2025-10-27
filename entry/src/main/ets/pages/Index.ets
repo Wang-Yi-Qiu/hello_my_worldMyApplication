@@ -44,11 +44,14 @@ struct Index {
         .onClick(() => {
           Logger.info('Navigate to MainPage');
           // 跳转到主页面
-          router.pushUrl({
-            url: 'pages/MainPage'
-          }).catch((err: Error) => {
+          try {
+            router.push({
+              url: 'pages/MainPage'
+            });
+            Logger.info('Successfully navigated to MainPage');
+          } catch (err) {
             Logger.error('Failed to navigate to MainPage', err);
-          });
+          }
         })
 
       // 版本信息

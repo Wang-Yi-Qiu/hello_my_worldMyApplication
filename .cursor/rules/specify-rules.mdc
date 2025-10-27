@@ -1,3 +1,35 @@
+---
+alwaysApply: false
+---
+# hello_my_worldMyApplication Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2025-10-22
+
+## Active Technologies
+
+- (001-smartcalc-app)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+# Add commands for 
+
+## Code Style
+
+: Follow standard conventions
+
+## Recent Changes
+
+- 001-smartcalc-app: Added
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->
 # hello_my_worldMyApplication Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2025-10-22

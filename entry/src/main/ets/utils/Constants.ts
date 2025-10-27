@@ -3,8 +3,9 @@
  */
 
 // 应用信息
-export const APP_NAME = 'SmartCalc';
+export const APP_NAME = 'HarmonyOS 智能计算器增强版';
 export const APP_VERSION = '1.0.0';
+export const BUNDLE_NAME = 'com.example.calculator';
 
 // 数据库配置
 export const DB_NAME = 'SmartCalc.db';
@@ -92,5 +93,48 @@ export const ERROR_MESSAGES = {
   DATABASE_ERROR: '数据库错误',
   NETWORK_ERROR: '网络错误',
   SYNC_ERROR: '同步失败'
+};
+
+// 新增常量定义
+export const PRIMARY_COLOR = '#007DFF';
+export const SUCCESS_COLOR = '#00C853';
+export const ERROR_COLOR = '#FF1744';
+export const WARNING_COLOR = '#FF9800';
+
+// 性能阈值
+export const PERFORMANCE_THRESHOLDS = {
+  CALCULATION: 1000,    // 1秒
+  UI_UPDATE: 100,       // 100毫秒
+  DATA_LOAD: 500,       // 500毫秒
+  ANIMATION: 300        // 300毫秒
+};
+
+// Widget相关
+export const WIDGET_NAME = 'QuickConvertWidget';
+export const WIDGET_UPDATE_INTERVAL = 86400; // 24小时
+
+// 存储键
+export const STORAGE_KEYS = {
+  HISTORY: 'history_records',
+  SETTINGS: 'app_settings',
+  PREFERENCES: 'user_preferences',
+  CONVERT_CONFIGS: 'convert_configs',
+  EMOTION_FEEDBACKS: 'emotion_feedbacks',
+  EASTER_EGG_CONFIGS: 'easter_egg_configs'
+};
+
+// 彩蛋触发值
+export const EASTER_EGG_VALUES = {
+  LOVE: 1314,
+  DEVIL: 666,
+  FORTUNE: 888,
+  ROMANCE: 520
+};
+
+// 货币代码
+export const CURRENCY_CODES = {
+  USD: 'USD',
+  CNY: 'CNY',
+  JPY: 'JPY'
 };
 

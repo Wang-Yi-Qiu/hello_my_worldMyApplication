@@ -59,6 +59,10 @@
     {
       "name": "confirm",
       "value": "确认"
+    },
+    {
+      "name": "QuickConvertWidget_label",
+      "value": "极速转换卡片"
     }
   ]
 }

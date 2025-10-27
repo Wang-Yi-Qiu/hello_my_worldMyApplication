@@ -1,0 +1,30 @@
+{
+  "forms": [
+    {
+      "name": "QuickConvertWidget",
+      "description": "极速转换卡片",
+      "src": "./ets/widgets/QuickConvertWidget.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 360,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDefault": true,
+      "updateEnabled": true,
+      "scheduledUpdateTime": "00:00",
+      "updateDuration": 86400,
+      "supportDimensions": [
+        "1*2",
+        "2*2",
+        "2*4",
+        "4*4",
+        "1*1",
+        "6*4",
+        "2*3",
+        "3*3"
+      ],
+      "defaultDimension": "2*2"
+    }
+  ]
+}

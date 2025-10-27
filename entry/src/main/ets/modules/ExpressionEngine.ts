@@ -3,11 +3,14 @@
  * 使用 math.js 实现高精度数学计算
  */
 import { Logger } from '../utils/Logger';
-import { DEFAULT_PRECISION, ERROR_MESSAGES } from '../utils/Constants';
+import { DEFAULT_PRECISION, ERROR_MESSAGES, PERFORMANCE_THRESHOLDS } from '../utils/Constants';
+import { PerformanceMonitor } from '../utils/PerformanceMonitor';
+import { ErrorHandler, CalculatorError, ExpressionParseError, CalculationError } from '../utils/ErrorHandler';
+import { LexicalAnalyzer } from './LexicalAnalyzer';
+import { SyntaxAnalyzer, ASTNode, ASTNodeType } from './SyntaxAnalyzer';
+import { MathJSWebViewCalculator } from './MathJSWebViewCalculator';
 
-// 注意：math.js 需要通过 ohpm 安装
-// 由于 HarmonyOS 的模块系统，这里使用动态导入
-// import * as math from 'mathjs';
+// 使用 WebView 调用 mathjs 进行数学计算
 
 export interface EvaluateOptions {
   precision?: number;
@@ -34,38 +37,45 @@ export interface SolveResult {
 export class ExpressionEngine {
   private precision: number;
   private angleUnit: 'degree' | 'radian';
-  private mathLib: any = null;
+  private performanceMonitor: PerformanceMonitor;
+  private errorHandler: ErrorHandler;
+  private mathJSCalculator: MathJSWebViewCalculator;
 
   constructor(precision: number = DEFAULT_PRECISION) {
     this.precision = precision;
     this.angleUnit = 'degree';
-    this.initialize();
+    this.performanceMonitor = PerformanceMonitor.getInstance();
+    this.errorHandler = ErrorHandler.getInstance();
+    this.mathJSCalculator = MathJSWebViewCalculator.getInstance();
     Logger.info(`ExpressionEngine initialized with precision: ${precision}`);
   }
-  
+
   /**
-   * 初始化 math.js
+   * 初始化 WebView 计算器
    */
-  private async initialize(): Promise<void> {
+  public async initialize(context: Context): Promise<void> {
     try {
-      // 注意：mathjs 库未安装，直接使用 fallback
-      // this.mathLib = await import('mathjs');
-      Logger.info('Using fallback expression evaluator');
+      await this.mathJSCalculator.initialize(context);
+      Logger.info('MathJS WebView calculator initialized');
     } catch (error) {
-      Logger.error('Failed to load math.js, using fallback', error);
+      Logger.error('Failed to initialize MathJS WebView calculator', error);
+      throw error;
     }
   }
 
   /**
    * 计算数学表达式
-   * 使用 math.js 进行计算（如果可用）
+   * 优先使用 WebView + mathjs，回退到内置计算
    */
   async evaluate(expression: string, options?: EvaluateOptions): Promise<EvaluateResult> {
+    const timerId = this.performanceMonitor.startTimer('calculation');
+    
     try {
       Logger.debug(`Evaluating expression: ${expression}`);
       
       // 验证表达式
       if (!expression || expression.trim() === '') {
+        this.performanceMonitor.endTimer(timerId);
         return {
           success: false,
           error: ERROR_MESSAGES.INVALID_EXPRESSION
@@ -74,43 +84,63 @@ export class ExpressionEngine {
 
       // 检查除以零
       if (this.checkDivisionByZero(expression)) {
+        this.performanceMonitor.endTimer(timerId);
         return {
           success: false,
           error: ERROR_MESSAGES.DIVISION_BY_ZERO
         };
       }
 
-      // 如果 math.js 可用，使用它进行计算
-      if (this.mathLib) {
+      // 优先使用 WebView + mathjs 计算
+      if (this.mathJSCalculator.isReady()) {
         try {
-          await this.ensureInitialized();
-          const result = this.mathLib.evaluate(expression);
-          const formattedResult = this.formatResult(result, options?.precision || this.precision);
-          
-          Logger.debug(`Evaluation result: ${formattedResult}`);
-          
-          return {
-            success: true,
-            result: formattedResult
-          };
+          const mathResult = await this.mathJSCalculator.calculate(expression);
+          if (mathResult.success) {
+            Logger.debug(`MathJS result: ${mathResult.result}`);
+            this.performanceMonitor.endTimer(timerId);
+            return {
+              success: true,
+              result: mathResult.result
+            };
+          } else {
+            Logger.warn('MathJS calculation failed, falling back to AST', mathResult.error);
+          }
         } catch (mathError) {
-          Logger.warn('Math.js evaluation failed, falling back to safeEval', mathError);
+          Logger.warn('MathJS calculation error, falling back to AST', mathError);
         }
+      } else {
+        Logger.info('MathJS WebView not ready, using AST calculation');
       }
 
-      // 降级到安全求值
-      const result = this.safeEval(expression);
+      // 回退到内置AST计算
+      const result = this.evaluateWithAST(expression);
       
-      // 格式化结果
+      // 处理特殊情况
+      if (!isFinite(result)) {
+        this.performanceMonitor.endTimer(timerId);
+        return {
+          success: false,
+          error: result === Infinity || result === -Infinity ? '计算结果溢出' : '计算结果无效'
+        };
+      }
+      
       const formattedResult = this.formatResult(result, options?.precision || this.precision);
 
-      Logger.debug(`Evaluation result: ${formattedResult}`);
+      Logger.debug(`AST result: ${formattedResult}`);
+      this.performanceMonitor.endTimer(timerId);
       
       return {
         success: true,
         result: formattedResult
       };
     } catch (error) {
+      this.performanceMonitor.endTimer(timerId);
+      this.errorHandler.handleError(error as Error, {
+        component: 'ExpressionEngine',
+        action: 'evaluate',
+        timestamp: Date.now()
+      });
+      
       Logger.error('Evaluation error', error);
       return {
         success: false,
@@ -120,11 +150,196 @@ export class ExpressionEngine {
   }
   
   /**
-   * 确保 math.js 已初始化
+   * 确保计算引擎已初始化
    */
   private async ensureInitialized(): Promise<void> {
-    if (!this.mathLib) {
-      await this.initialize();
+    // WebView 计算器需要显式初始化
+    if (!this.mathJSCalculator.isReady()) {
+      Logger.warn('MathJS WebView calculator not ready');
+    }
+  }
+
+  /**
+   * 使用AST计算表达式
+   */
+  private evaluateWithAST(expression: string): number {
+    try {
+      const syntaxAnalyzer = new SyntaxAnalyzer(expression);
+      const ast = syntaxAnalyzer.parse();
+      return this.evaluateAST(ast);
+    } catch (error) {
+      Logger.error('AST evaluation error', error);
+      throw new ExpressionParseError(`表达式解析失败: ${error.message}`, expression);
+    }
+  }
+
+  /**
+   * 计算AST节点
+   */
+  private evaluateAST(node: ASTNode): number {
+    switch (node.type) {
+      case ASTNodeType.NUMBER:
+        return node.value as number;
+      
+      case ASTNodeType.CONSTANT:
+        return this.evaluateConstant(node.value as string);
+      
+      case ASTNodeType.BINARY_OP:
+        const left = this.evaluateAST(node.left!);
+        const right = this.evaluateAST(node.right!);
+        return this.evaluateBinaryOperation(node.operator!, left, right);
+      
+      case ASTNodeType.UNARY_OP:
+        const operand = this.evaluateAST(node.operand!);
+        return this.evaluateUnaryOperation(node.operator!, operand);
+      
+      case ASTNodeType.FUNCTION_CALL:
+        const args = node.arguments?.map(arg => this.evaluateAST(arg)) || [];
+        return this.evaluateFunction(node.functionName!, args);
+      
+      default:
+        throw new CalculationError(`未知的AST节点类型: ${node.type}`);
+    }
+  }
+
+  /**
+   * 计算数学常数
+   */
+  private evaluateConstant(constant: string): number {
+    switch (constant.toLowerCase()) {
+      case 'pi':
+        return Math.PI;
+      case 'e':
+        return Math.E;
+      case 'infinity':
+        return Infinity;
+      case 'nan':
+        return NaN;
+      default:
+        throw new CalculationError(`未知的数学常数: ${constant}`);
+    }
+  }
+
+  /**
+   * 计算二元运算
+   */
+  private evaluateBinaryOperation(operator: string, left: number, right: number): number {
+    switch (operator) {
+      case '+':
+        return left + right;
+      case '-':
+        return left - right;
+      case '*':
+        return left * right;
+      case '/':
+        if (right === 0) {
+          throw new CalculationError('除以零错误');
+        }
+        return left / right;
+      case '^':
+        return Math.pow(left, right);
+      case '%':
+        return left % right;
+      default:
+        throw new CalculationError(`未知的二元运算符: ${operator}`);
+    }
+  }
+
+  /**
+   * 计算一元运算
+   */
+  private evaluateUnaryOperation(operator: string, operand: number): number {
+    switch (operator) {
+      case '+':
+        return operand;
+      case '-':
+        return -operand;
+      default:
+        throw new CalculationError(`未知的一元运算符: ${operator}`);
+    }
+  }
+
+  /**
+   * 计算函数调用
+   */
+  private evaluateFunction(functionName: string, args: number[]): number {
+    switch (functionName.toLowerCase()) {
+      case 'sin':
+        if (args.length !== 1) throw new CalculationError(`sin函数需要1个参数，得到${args.length}个`);
+        return Math.sin(this.angleUnit === 'degree' ? (args[0] * Math.PI / 180) : args[0]);
+      
+      case 'cos':
+        if (args.length !== 1) throw new CalculationError(`cos函数需要1个参数，得到${args.length}个`);
+        return Math.cos(this.angleUnit === 'degree' ? (args[0] * Math.PI / 180) : args[0]);
+      
+      case 'tan':
+        if (args.length !== 1) throw new CalculationError(`tan函数需要1个参数，得到${args.length}个`);
+        return Math.tan(this.angleUnit === 'degree' ? (args[0] * Math.PI / 180) : args[0]);
+      
+      case 'asin':
+        if (args.length !== 1) throw new CalculationError(`asin函数需要1个参数，得到${args.length}个`);
+        const asinResult = Math.asin(args[0]);
+        return this.angleUnit === 'degree' ? (asinResult * 180 / Math.PI) : asinResult;
+      
+      case 'acos':
+        if (args.length !== 1) throw new CalculationError(`acos函数需要1个参数，得到${args.length}个`);
+        const acosResult = Math.acos(args[0]);
+        return this.angleUnit === 'degree' ? (acosResult * 180 / Math.PI) : acosResult;
+      
+      case 'atan':
+        if (args.length !== 1) throw new CalculationError(`atan函数需要1个参数，得到${args.length}个`);
+        const atanResult = Math.atan(args[0]);
+        return this.angleUnit === 'degree' ? (atanResult * 180 / Math.PI) : atanResult;
+      
+      case 'sqrt':
+        if (args.length !== 1) throw new CalculationError(`sqrt函数需要1个参数，得到${args.length}个`);
+        if (args[0] < 0) throw new CalculationError('负数不能开平方根');
+        return Math.sqrt(args[0]);
+      
+      case 'log':
+        if (args.length !== 1) throw new CalculationError(`log函数需要1个参数，得到${args.length}个`);
+        if (args[0] <= 0) throw new CalculationError('log函数的参数必须大于0');
+        return Math.log10(args[0]);
+      
+      case 'ln':
+        if (args.length !== 1) throw new CalculationError(`ln函数需要1个参数，得到${args.length}个`);
+        if (args[0] <= 0) throw new CalculationError('ln函数的参数必须大于0');
+        return Math.log(args[0]);
+      
+      case 'exp':
+        if (args.length !== 1) throw new CalculationError(`exp函数需要1个参数，得到${args.length}个`);
+        return Math.exp(args[0]);
+      
+      case 'abs':
+        if (args.length !== 1) throw new CalculationError(`abs函数需要1个参数，得到${args.length}个`);
+        return Math.abs(args[0]);
+      
+      case 'ceil':
+        if (args.length !== 1) throw new CalculationError(`ceil函数需要1个参数，得到${args.length}个`);
+        return Math.ceil(args[0]);
+      
+      case 'floor':
+        if (args.length !== 1) throw new CalculationError(`floor函数需要1个参数，得到${args.length}个`);
+        return Math.floor(args[0]);
+      
+      case 'round':
+        if (args.length !== 1) throw new CalculationError(`round函数需要1个参数，得到${args.length}个`);
+        return Math.round(args[0]);
+      
+      case 'pow':
+        if (args.length !== 2) throw new CalculationError(`pow函数需要2个参数，得到${args.length}个`);
+        return Math.pow(args[0], args[1]);
+      
+      case 'min':
+        if (args.length < 1) throw new CalculationError(`min函数至少需要1个参数，得到${args.length}个`);
+        return Math.min(...args);
+      
+      case 'max':
+        if (args.length < 1) throw new CalculationError(`max函数至少需要1个参数，得到${args.length}个`);
+        return Math.max(...args);
+      
+      default:
+        throw new CalculationError(`未知的数学函数: ${functionName}`);
     }
   }
 
@@ -643,26 +858,51 @@ export class ExpressionEngine {
       return value > 0 ? 'Infinity' : '-Infinity';
     }
 
-    // 处理非常大或非常小的数字，使用科学计数法
-    if (Math.abs(value) > 1e15 || (Math.abs(value) < 1e-6 && value !== 0)) {
-      return value.toExponential(precision);
+    // 处理整数
+    if (Number.isInteger(value)) {
+      return value.toString();
     }
 
-    // 普通数字，限制小数位数
-    const fixed = value.toFixed(precision);
+    // 限制精度范围，避免过大精度导致问题
+    const safePrecision = Math.min(Math.max(precision, 0), 10);
+    
+    // 处理非常大或非常小的数字，使用科学计数法
+    if (Math.abs(value) > 1e12 || (Math.abs(value) < 1e-6 && value !== 0)) {
+      return value.toExponential(safePrecision);
+    }
+
+    // 普通数字，保留适量小数位
+    const fixed = value.toFixed(safePrecision);
     // 移除末尾的零
     return parseFloat(fixed).toString();
   }
 
   /**
-   * 求解方程（简化版本）
-   * 注意：完整实现需要 math.js
+   * 求解方程
+   * 优先使用 WebView + mathjs，回退到内置算法
    */
-  solveEquation(equation: string, options?: SolveOptions): SolveResult {
+  async solveEquation(equation: string, options?: SolveOptions): Promise<SolveResult> {
     try {
       Logger.debug(`Solving equation: ${equation}`);
       
-      // 简化版本：仅支持一元一次方程 ax + b = 0
+      // 优先使用 WebView + mathjs
+      if (this.mathJSCalculator.isReady()) {
+        try {
+          const variable = options?.variable || 'x';
+          const mathResult = await this.mathJSCalculator.solveEquation(equation, variable);
+          if (mathResult.success && mathResult.result) {
+            Logger.debug(`MathJS solve result: ${mathResult.result}`);
+            return {
+              success: true,
+              solutions: [mathResult.result]
+            };
+          }
+        } catch (mathError) {
+          Logger.warn('MathJS solve error, falling back to built-in solver', mathError);
+        }
+      }
+      
+      // 回退到内置求解器：仅支持一元一次方程 ax + b = 0
       const variable = options?.variable || 'x';
       
       // 解析方程（这是非常简化的实现）

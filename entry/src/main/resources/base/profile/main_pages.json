@@ -1,9 +1,6 @@
 {
   "src": [
     "pages/Index",
-    "pages/MainPage",
-    "pages/CalculatorPage",
-    "pages/HistoryPage",
-    "pages/SettingsPage"
+    "pages/MainPage"
   ]
 }

@@ -18,9 +18,14 @@ export struct SettingsPage {
   @State autoSync: boolean = true;
   @State networkState: NetworkState = NetworkState.UNKNOWN;
   @State offlineStatus: OfflineStatus = {
-    isOnline: false,
+    isOffline: false,
+    isOnline: true,
+    pendingSyncCount: 0,
     pendingSyncTasks: 0
   };
+  @State enableEmotionFeedback: boolean = true;
+  @State enableFortuneText: boolean = true;
+  @State enableEasterEgg: boolean = true;
   
   private themeManager: ThemeManager = ThemeManager.getInstance();
   private networkMonitor: NetworkMonitor = NetworkMonitor.getInstance();
@@ -30,6 +35,22 @@ export struct SettingsPage {
     Logger.info('SettingsPage loaded');
     this.loadSettings();
     this.updateNetworkStatus();
+    
+    // 初始化AppStorage中的趣味设置
+    if (!AppStorage.has('enableEmotionFeedback')) {
+      AppStorage.setOrCreate('enableEmotionFeedback', true);
+    }
+    if (!AppStorage.has('enableFortuneText')) {
+      AppStorage.setOrCreate('enableFortuneText', true);
+    }
+    if (!AppStorage.has('enableEasterEgg')) {
+      AppStorage.setOrCreate('enableEasterEgg', true);
+    }
+    
+    // 从AppStorage读取设置
+    this.enableEmotionFeedback = AppStorage.get('enableEmotionFeedback') as boolean;
+    this.enableFortuneText = AppStorage.get('enableFortuneText') as boolean;
+    this.enableEasterEgg = AppStorage.get('enableEasterEgg') as boolean;
     
     // 监听网络状态变化
     this.networkMonitor.addListener((state: NetworkState) => {
@@ -80,6 +101,9 @@ export struct SettingsPage {
         
         // 计算设置
         this.buildCalculationSection();
+        
+        // 趣味设置（情绪反馈和幸运提示）
+        this.buildFunSection();
         
         // 数据同步
         this.buildSyncSection();
@@ -417,6 +441,107 @@ export struct SettingsPage {
     } catch (error) {
       Logger.error('Manual sync failed', error);
       ToastHelper.showError('同步失败：' + (error as Error).message);
+    }
+  }
+
+  /**
+   * 趣味设置区域
+   */
+  @Builder buildFunSection() {
+    Column() {
+      Text('趣味设置')
+        .fontSize(14)
+        .fontColor('#999')
+        .padding({ left: 15, top: 10, bottom: 5 })
+        .width('100%')
+      
+      Column() {
+        // 情绪反馈
+        Row() {
+          Column() {
+            Text('情绪反馈')
+              .fontSize(16)
+              .fontColor('#333')
+            
+            Text('根据计算结果显示趣味表情')
+              .fontSize(12)
+              .fontColor('#999')
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          
+          Toggle({ type: ToggleType.Switch, isOn: this.enableEmotionFeedback })
+            .onChange((isOn: boolean) => {
+              this.enableEmotionFeedback = isOn;
+              AppStorage.setOrCreate('enableEmotionFeedback', isOn);
+              Logger.info(`Emotion feedback: ${isOn}`);
+              ToastHelper.showInfo(isOn ? '已开启情绪反馈' : '已关闭情绪反馈');
+            })
+        }
+        .width('100%')
+        .padding(15)
+        
+        // 幸运提示
+        Row() {
+          Column() {
+            Text('幸运提示')
+              .fontSize(16)
+              .fontColor('#333')
+            
+            Text('每次计算后显示幸运提示语')
+              .fontSize(12)
+              .fontColor('#999')
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          
+          Toggle({ type: ToggleType.Switch, isOn: this.enableFortuneText })
+            .onChange((isOn: boolean) => {
+              this.enableFortuneText = isOn;
+              AppStorage.setOrCreate('enableFortuneText', isOn);
+              Logger.info(`Fortune text: ${isOn}`);
+              ToastHelper.showInfo(isOn ? '已开启幸运提示' : '已关闭幸运提示');
+            })
+        }
+        .width('100%')
+        .padding(15)
+        .borderWidth({ top: 1 })
+        .borderColor('#f0f0f0')
+        
+        // 彩蛋模式
+        Row() {
+          Column() {
+            Text('彩蛋模式')
+              .fontSize(16)
+              .fontColor('#333')
+            
+            Text('特定数字触发特殊效果')
+              .fontSize(12)
+              .fontColor('#999')
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          
+          Toggle({ type: ToggleType.Switch, isOn: this.enableEasterEgg })
+            .onChange((isOn: boolean) => {
+              this.enableEasterEgg = isOn;
+              AppStorage.setOrCreate('enableEasterEgg', isOn);
+              Logger.info(`Easter egg: ${isOn}`);
+              ToastHelper.showInfo(isOn ? '已开启彩蛋模式' : '已关闭彩蛋模式');
+            })
+        }
+        .width('100%')
+        .padding(15)
+        .borderWidth({ top: 1 })
+        .borderColor('#f0f0f0')
+      }
+      .width('100%')
+      .backgroundColor('#fff')
+      .borderRadius(8)
+      .margin({ left: 15, right: 15, bottom: 15 })
     }
   }
 }

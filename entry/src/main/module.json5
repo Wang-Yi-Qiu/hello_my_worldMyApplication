@@ -96,7 +96,21 @@
             "name": "ohos.extension.backup",
             "resource": "$profile:backup_config"
           }
-        ],
+        ]
+      },
+      {
+        "name": "QuickConvertWidget",
+        "srcEntry": "./ets/widgets/QuickConvertWidget.ets",
+        "type": "form",
+        "exported": true,
+        "icon": "$media:startIcon",
+        "label": "$string:QuickConvertWidget_label",
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
       }
     ]
   }

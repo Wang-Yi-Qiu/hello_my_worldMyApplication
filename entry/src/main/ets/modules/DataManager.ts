@@ -5,7 +5,7 @@
 import { relationalStore } from '@kit.ArkData';
 import { DatabaseManager } from './DatabaseManager';
 import { Formula, FormulaModel } from '../models/Formula';
-import { HistoryRecord, HistoryRecordModel } from '../models/HistoryRecord';
+import { HistoryRecord } from '../models/HistoryRecord';
 import { Logger } from '../utils/Logger';
 
 export interface SaveResult {
@@ -39,7 +39,7 @@ export interface HistoryQuery {
 
 export interface GetHistoryResult {
   success: boolean;
-  history?: HistoryRecordModel[];
+  history?: HistoryRecord[];
   total?: number;
   error?: string;
 }
@@ -176,7 +176,7 @@ export class DataManager {
       const valueBucket: relationalStore.ValuesBucket = {
         expression: record.expression,
         result: record.result,
-        calc_type: record.calc_type || 'basic',
+        id: record.id,
         created_at: new Date().toISOString(),
         sync_state: 0
       };
@@ -199,9 +199,7 @@ export class DataManager {
       const store = this.db.getStore();
       const predicates = new relationalStore.RdbPredicates('history_records');
 
-      if (query?.calcType) {
-        predicates.equalTo('calc_type', query.calcType);
-      }
+      // 移除了 calc_type 查询条件，因为 HistoryRecord 模型中没有此属性
 
       if (query?.keyword) {
         predicates.and();
@@ -232,19 +230,26 @@ export class DataManager {
       }
 
       const resultSet = await store.query(predicates);
-      const history: HistoryRecordModel[] = [];
+      const history: HistoryRecord[] = [];
 
       while (resultSet.goToNextRow()) {
         const record: HistoryRecord = {
-          id: resultSet.getLong(resultSet.getColumnIndex('id')),
-          user_id: resultSet.getString(resultSet.getColumnIndex('user_id')),
+          id: resultSet.getString(resultSet.getColumnIndex('id')),
           expression: resultSet.getString(resultSet.getColumnIndex('expression')),
-          result: resultSet.getString(resultSet.getColumnIndex('result')),
-          calc_type: resultSet.getString(resultSet.getColumnIndex('calc_type')),
-          created_at: resultSet.getString(resultSet.getColumnIndex('created_at')),
-          sync_state: resultSet.getLong(resultSet.getColumnIndex('sync_state'))
+          result: parseFloat(resultSet.getString(resultSet.getColumnIndex('result'))),
+          timestamp: parseInt(resultSet.getString(resultSet.getColumnIndex('created_at'))),
+          emotion: {
+            id: '',
+            condition: '',
+            text: '',
+            emoji: '',
+            priority: 0,
+            isEnabled: true
+          },
+          fortune: '',
+          isEasterEgg: false
         };
-        history.push(HistoryRecordModel.fromDatabase(record));
+        history.push(record);
       }
 
       resultSet.close();
@@ -270,9 +275,7 @@ export class DataManager {
       const valueBucket: relationalStore.ValuesBucket = {
         expression: history.expression,
         result: history.result,
-        calc_type: history.calc_type,
-        is_favorite: history.is_favorite,
-        category: history.category,
+        id: history.id,
         sync_state: 0
       };
 
@@ -292,7 +295,7 @@ export class DataManager {
   /**
    * 删除单个历史记录
    */
-  async deleteHistory(id: number): Promise<SaveResult> {
+  async deleteHistory(id: string): Promise<SaveResult> {
     try {
       const store = this.db.getStore();
       const predicates = new relationalStore.RdbPredicates('history_records');
@@ -311,7 +314,7 @@ export class DataManager {
   /**
    * 批量删除历史记录
    */
-  async deleteHistoryBatch(ids: number[]): Promise<SaveResult> {
+  async deleteHistoryBatch(ids: string[]): Promise<SaveResult> {
     try {
       if (ids.length === 0) {
         return { success: true };

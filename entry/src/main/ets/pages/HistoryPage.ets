@@ -4,23 +4,35 @@
  */
 import { AppTheme } from '../utils/AppTheme';
 import { Logger } from '../utils/Logger';
+import { ToastHelper } from '../utils/ToastHelper';
 import { DataManager, GetHistoryResult } from '../modules/DataManager';
-import { HistoryRecordModel } from '../models/HistoryRecord';
-import { promptAction } from '@kit.ArkUI';
+import { HistoryRecord } from '../models/HistoryRecord';
 
 @Component
 export struct HistoryPage {
   @StorageLink('currentTheme') currentTheme: string = 'light';
-  @State historyList: HistoryRecordModel[] = [];
+  @StorageProp('expressionFromHistory') expressionFromHistory: string = '';
+  @StorageLink('needRefreshHistory') needRefreshHistory: boolean = false;
+  @State historyList: HistoryRecord[] = [];
   @State isLoading: boolean = true;
   @State refreshing: boolean = false;
   @State isEditMode: boolean = false;
-  @State selectedIds: Set<number> = new Set();
+  @State selectedIds: Set<string> = new Set();
   private dataManager: DataManager = new DataManager();
 
   aboutToAppear() {
     Logger.info('HistoryPage loaded');
     this.loadHistory();
+  }
+  
+  aboutToUpdate() {
+    // 检测 needRefreshHistory 变化并刷新
+    if (this.needRefreshHistory) {
+      Logger.info('needRefreshHistory changed to true, refreshing...');
+      this.loadHistory();
+      // 重置标记
+      AppStorage.setOrCreate('needRefreshHistory', false);
+    }
   }
   
   onPageShow() {
@@ -45,9 +57,7 @@ export struct HistoryPage {
       }
     } catch (error) {
       Logger.error('Failed to load history', error);
-      promptAction.showToast({
-        message: '加载历史失败'
-      });
+      ToastHelper.showError('加载历史失败');
     } finally {
       this.isLoading = false;
     }
@@ -56,24 +66,18 @@ export struct HistoryPage {
   /**
    * 删除单个历史记录
    */
-  async deleteHistory(id: number) {
+  async deleteHistory(id: string) {
     try {
       const result = await this.dataManager.deleteHistory(id);
       if (result.success) {
         this.historyList = this.historyList.filter(item => item.id !== id);
-        promptAction.showToast({
-          message: '已删除'
-        });
+        ToastHelper.showSuccess('已删除');
       } else {
-        promptAction.showToast({
-          message: result.error || '删除失败'
-        });
+        ToastHelper.showError(result.error || '删除失败');
       }
     } catch (error) {
       Logger.error('Failed to delete history', error);
-      promptAction.showToast({
-        message: '删除失败'
-      });
+      ToastHelper.showError('删除失败');
     }
   }
 
@@ -84,9 +88,7 @@ export struct HistoryPage {
     try {
       const ids = Array.from(this.selectedIds);
       if (ids.length === 0) {
-        promptAction.showToast({
-          message: '请先选择要删除的记录'
-        });
+        ToastHelper.showWarning('请先选择要删除的记录');
         return;
       }
 
@@ -95,19 +97,13 @@ export struct HistoryPage {
         this.historyList = this.historyList.filter(item => !this.selectedIds.has(item.id!));
         this.selectedIds.clear();
         this.isEditMode = false;
-        promptAction.showToast({
-          message: `已删除 ${ids.length} 条记录`
-        });
+        ToastHelper.showSuccess(`已删除 ${ids.length} 条记录`);
       } else {
-        promptAction.showToast({
-          message: result.error || '批量删除失败'
-        });
+        ToastHelper.showError(result.error || '批量删除失败');
       }
     } catch (error) {
       Logger.error('Failed to batch delete history', error);
-      promptAction.showToast({
-        message: '批量删除失败'
-      });
+      ToastHelper.showError('批量删除失败');
     }
   }
 
@@ -120,14 +116,10 @@ export struct HistoryPage {
       this.historyList = [];
       this.selectedIds.clear();
       this.isEditMode = false;
-      promptAction.showToast({
-        message: '历史已清空'
-      });
+      ToastHelper.showSuccess('历史已清空');
     } catch (error) {
       Logger.error('Failed to clear history', error);
-      promptAction.showToast({
-        message: '清空失败'
-      });
+      ToastHelper.showError('清空失败');
     }
   }
 
@@ -144,7 +136,7 @@ export struct HistoryPage {
   /**
    * 切换选中状态
    */
-  toggleSelection(id: number) {
+  toggleSelection(id: string) {
     if (this.selectedIds.has(id)) {
       this.selectedIds.delete(id);
     } else {
@@ -157,11 +149,26 @@ export struct HistoryPage {
   /**
    * 全选/取消全选
    */
-  toggleSelectAll() {
+  toggleSelectAll(): void {
     if (this.selectedIds.size === this.historyList.length) {
       this.selectedIds.clear();
     } else {
-      this.selectedIds = new Set(this.historyList.map(item => item.id!).filter(id => id !== undefined));
+      this.selectedIds = new Set(this.historyList.map((item: HistoryRecord) => item.id!).filter((id: string) => id !== undefined));
+    }
+  }
+
+  /**
+   * 将历史记录复制到计算器
+   */
+  copyToCalculator(item: HistoryRecord) {
+    try {
+      // 设置表达式到AppStorage，触发自动切换
+      AppStorage.setOrCreate('expressionFromHistory', item.expression);
+      ToastHelper.showSuccess('已复制到计算器');
+      Logger.info(`Copied expression to calculator: ${item.expression}`);
+    } catch (error) {
+      Logger.error('Failed to copy to calculator', error);
+      ToastHelper.showError('复制失败');
     }
   }
 
@@ -283,14 +290,14 @@ export struct HistoryPage {
       } else {
         // 历史列表
         List({ space: 0 }) {
-          ForEach(this.historyList, (item: HistoryRecordModel, index: number) => {
+          ForEach(this.historyList, (item: HistoryRecord, index: number) => {
             ListItem() {
               this.buildHistoryItem(item, index);
             }
             .swipeAction({
               end: this.buildSwipeDelete(item)
             })
-          }, (item: HistoryRecordModel) => item.id?.toString() || item.createdAt)
+          }, (item: HistoryRecord) => item.id?.toString() || item.timestamp.toString())
         }
         .layoutWeight(1)
         .divider({
@@ -307,7 +314,7 @@ export struct HistoryPage {
   /**
    * 构建历史记录项
    */
-  @Builder buildHistoryItem(item: HistoryRecordModel, index: number) {
+  @Builder buildHistoryItem(item: HistoryRecord, index: number) {
     Column() {
       Row() {
         // 编辑模式下显示复选框
@@ -332,14 +339,40 @@ export struct HistoryPage {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           
           // 结果
-          Text(`= ${item.result}`)
-            .fontSize(AppTheme.FONT_SIZE_TITLE)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(AppTheme.PRIMARY_COLOR)
+          Row() {
+            Text(`= ${item.result}`)
+              .fontSize(AppTheme.FONT_SIZE_TITLE)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(AppTheme.PRIMARY_COLOR)
+            
+            // 情绪表情
+            if (item.emotion && item.emotion.emoji) {
+              Text(item.emotion.emoji)
+                .fontSize(AppTheme.FONT_SIZE_NORMAL)
+                .margin({ left: AppTheme.SPACING_MINI })
+            }
+          }
+          .margin({ top: AppTheme.SPACING_MINI })
+          
+          // 幸运提示和彩蛋标记
+          if (item.fortune || item.isEasterEgg) {
+            Row() {
+              if (item.fortune) {
+                Text(item.fortune)
+                  .fontSize(AppTheme.FONT_SIZE_SMALL)
+                  .fontColor('#FF9800')
+                  .margin({ right: AppTheme.SPACING_MINI })
+              }
+              if (item.isEasterEgg) {
+                Text('🎉')
+                  .fontSize(AppTheme.FONT_SIZE_SMALL)
+              }
+            }
             .margin({ top: AppTheme.SPACING_MINI })
+          }
           
           // 时间
-          Text(this.formatTime(item.createdAt))
+          Text(this.formatTime(new Date(item.timestamp).toISOString()))
             .fontSize(AppTheme.FONT_SIZE_SMALL)
             .fontColor(AppTheme.getTertiaryTextColor(this.currentTheme === 'dark'))
             .margin({ top: AppTheme.SPACING_MINI })
@@ -362,12 +395,8 @@ export struct HistoryPage {
         // 编辑模式下点击切换选中状态
         this.toggleSelection(item.id!);
       } else {
-        // 正常模式下点击复制
-        Logger.info(`History item clicked: ${item.expression}`);
-        promptAction.showToast({
-          message: '已复制到剪贴板'
-        });
-        // TODO: 复制到剪贴板功能
+        // 正常模式下点击复制到计算器
+        this.copyToCalculator(item);
       }
     })
   }
@@ -375,7 +404,7 @@ export struct HistoryPage {
   /**
    * 构建滑动删除按钮
    */
-  @Builder buildSwipeDelete(item: HistoryRecordModel) {
+  @Builder buildSwipeDelete(item: HistoryRecord) {
     Button('删除')
       .fontSize(AppTheme.FONT_SIZE_MEDIUM)
       .fontColor('#FFFFFF')
