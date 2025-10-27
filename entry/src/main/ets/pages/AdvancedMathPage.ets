@@ -11,6 +11,7 @@ import { MathSymbolKeyboard } from '../components/MathSymbolKeyboard';
 import { StructuredInputDialog, InputType, StructuredInputResult, StructuredInputData } from '../components/StructuredInputDialog';
 import { LaTeXRenderer } from '../components/LaTeXRenderer';
 import { DataManager } from '../modules/DataManager';
+import { backendAPI } from '../services/BackendAPIService';
 
 @Component
 export struct AdvancedMathPage {
@@ -686,7 +687,7 @@ export struct AdvancedMathPage {
   /**
    * 计算
    */
-  calculate() {
+  async calculate() {
     // 重置状态
     this.result = '';
     this.resultLatex = '';
@@ -717,10 +718,10 @@ export struct AdvancedMathPage {
     try {
       switch (this.selectedFunction) {
         case '求导':
-          this.calculateDerivative();
+          await this.calculateDerivative();
           break;
         case '积分':
-          this.calculateIntegral();
+          await this.calculateIntegral();
           break;
         case '极限':
           this.calculateLimit();
@@ -766,52 +767,86 @@ export struct AdvancedMathPage {
   /**
    * 计算导数
    */
-  private calculateDerivative() {
+  private async calculateDerivative() {
     const expression: string = this.latexInput.trim();
     const variable: string = this.structuredData?.variable || 'x';
     const order: number = this.structuredData?.order || 1;
     
-    let result: DerivativeResult;
+    Logger.info(`Calculating derivative: ${expression} with respect to ${variable}, order=${order}`);
     
-    // 根据阶数计算导数
-    if (order === 1) {
-      result = this.calculusEngine.symbolicDerivative(expression, variable);
-    } else {
-      // 高阶导数：连续求导
-      result = this.calculusEngine.symbolicDerivative(expression, variable);
-      for (let i = 1; i < order && result.success; i++) {
-        result = this.calculusEngine.symbolicDerivative(result.derivative || expression, variable);
+    try {
+      // 预处理表达式，将 ^ 转换为 ** (Python幂运算符)
+      const processedExpression = this.preprocessExpression(expression);
+      
+      // 使用后端API进行符号求导
+      const response = await backendAPI.differentiate(processedExpression, variable);
+      
+      Logger.info('Backend API response:', JSON.stringify(response));
+      
+      if (response.success && response.data) {
+        const derivative = response.data.result || '';
+        
+        Logger.info('Derivative result:', derivative);
+        
+        if (!derivative || derivative.trim() === '') {
+          this.errorMessage = '计算结果为空，请检查表达式格式';
+          Logger.error('Empty derivative result');
+          return;
+        }
+        
+        // 使用数学符号美化显示
+        const orderSymbol = order === 1 ? "'" : order === 2 ? "''" : `^(${order})`;
+        const explanation = `函数 ${expression} 的${order}阶导数为：`;
+        const formula = `\nf${orderSymbol}(${variable}) = ${this.beautifyMathExpression(derivative)}`;
+        this.result = explanation + formula;
+        
+        // 生成LaTeX
+        this.resultLatex = response.data.latex || `f${orderSymbol}(${variable}) = ${this.toLatex(derivative)}`;
+        
+        // 生成详细步骤
+        this.steps = [
+          `原函数: f(${variable}) = ${expression}`,
+          `预处理表达式: ${processedExpression}`,
+          `求 ${order} 阶导数`,
+          `使用SymPy符号计算`,
+          `最终结果: f${orderSymbol}(${variable}) = ${derivative}`
+        ];
+        this.showSteps = true;
+        
+        // 保存到历史记录
+        this.saveToHistory(expression, derivative, 'derivative');
+        
+        Logger.info('Derivative calculation completed successfully');
+      } else {
+        this.errorMessage = response.error || '求导失败';
+        Logger.error('Derivative calculation failed:', response.error);
+        Logger.error('Full response:', JSON.stringify(response));
       }
-    }
-    
-    if (result.success && result.derivative) {
-      // 使用数学符号美化显示
-      const orderSymbol = order === 1 ? "'" : order === 2 ? "''" : `^(${order})`;
-      this.result = `f${orderSymbol}(${variable}) = ${this.beautifyMathExpression(result.derivative)}`;
-      
-      // 生成LaTeX
-      this.resultLatex = `f${orderSymbol}(${variable}) = ${this.toLatex(result.derivative)}`;
-      
-      // 生成详细步骤
-      this.steps = [
-        `原函数: f(${variable}) = ${expression}`,
-        `求 ${order} 阶导数`,
-        ...(result.steps || []),
-        `最终结果: f${orderSymbol}(${variable}) = ${result.derivative}`
-      ];
-      this.showSteps = true;
-      
-      // 保存到历史记录
-      this.saveToHistory(expression, result.derivative, 'derivative');
-    } else {
-      this.errorMessage = result.error || '求导失败';
+    } catch (error) {
+      Logger.error('Derivative calculation error:', error);
+      this.errorMessage = `计算出错: ${error instanceof Error ? error.message : '未知错误'}。请检查表达式格式或网络连接。`;
     }
   }
   
   /**
+   * 预处理数学表达式（转换符号格式）
+   */
+  private preprocessExpression(expr: string): string {
+    let processed = expr.trim();
+    
+    // 替换 ^ 为 ** (Python幂运算符)
+    processed = processed.replace(/\^/g, '**');
+    
+    // 去掉空格
+    processed = processed.replace(/\s+/g, '');
+    
+    return processed;
+  }
+
+  /**
    * 计算积分
    */
-  private calculateIntegral() {
+  private async calculateIntegral() {
     const expression: string = this.latexInput.trim();
     const variable: string = this.structuredData?.variable || 'x';
     
@@ -819,46 +854,56 @@ export struct AdvancedMathPage {
     const definiteMatch: RegExpMatchArray | null = expression.match(/\[([^,]+),\s*([^\]]+)\]/);
     
     if (definiteMatch || this.structuredData?.lowerLimit) {
-      // 定积分
+      // 定积分 - 使用后端API
       const from: string = this.structuredData?.lowerLimit || definiteMatch![1];
       const to: string = this.structuredData?.upperLimit || definiteMatch![2];
       let expr: string = this.structuredData?.function || expression.replace(/\[.*?\]/, '').trim();
       
-      // 预处理表达式：移除可能的空格和特殊字符
-      expr = expr.trim();
+      // 预处理表达式
+      expr = this.preprocessExpression(expr);
       
       // 解析数值
       const fromNum = this.parseValue(from);
       const toNum = this.parseValue(to);
       
-      Logger.info(`Calculating definite integral: ∫[${from}, ${to}] ${expr} d${variable}`);
-      Logger.info(`Parsed limits: from=${fromNum}, to=${toNum}`);
+      Logger.info(`Calculating definite integral using backend: ∫[${fromNum}, ${toNum}] ${expr} d${variable}`);
       
-      const result: IntegralResult = this.calculusEngine.definiteIntegral(expr, variable, fromNum, toNum);
-      
-      if (result.success && result.value !== undefined) {
-        // 生成人性化的结果说明
-        const fromStr = from === 'π' || from === 'pi' ? 'π' : from;
-        const toStr = to === 'π' || to === 'pi' ? 'π' : to;
+      try {
+        const response = await backendAPI.integrate(expr, fromNum, toNum, variable);
         
-        const explanation = `计算从 ${fromStr} 到 ${toStr} 的定积分，结果约为 ${result.value.toFixed(6)}`;
-        const formula = `\n∫[${fromStr}, ${toStr}] ${this.beautifyMathExpression(expr)} d${variable} ≈ ${result.value.toFixed(6)}`;
-        
-        this.result = explanation + formula;
-        
-        // 生成LaTeX
-        this.resultLatex = `\\int_{${fromStr}}^{${toStr}} ${this.toLatex(expr)} \\, d${variable} \\approx ${result.value.toFixed(6)}`;
-        
-        // 使用引擎返回的步骤
-        this.steps = result.steps || [];
-        this.showSteps = true;
-      } else {
-        this.errorMessage = result.error || '积分计算失败';
-        this.steps = result.steps || [];
-        this.showSteps = true;
+        if (response.success && response.data) {
+          const integralValue = response.data.result || '';
+          const fromStr = from === 'π' || from === 'pi' ? 'π' : from;
+          const toStr = to === 'π' || to === 'pi' ? 'π' : to;
+          
+          const explanation = `计算从 ${fromStr} 到 ${toStr} 的定积分：`;
+          const formula = `\n∫[${fromStr}, ${toStr}] ${this.beautifyMathExpression(expr)} d${variable} = ${integralValue}`;
+          
+          this.result = explanation + formula;
+          
+          // 生成LaTeX
+          this.resultLatex = `\\int_{${fromStr}}^{${toStr}} ${this.toLatex(expr)} \\, d${variable} = ${integralValue}`;
+          
+          this.steps = [
+            `原函数: f(${variable}) = ${expr}`,
+            `积分区间: [${fromStr}, ${toStr}]`,
+            `使用数值积分方法（Simpson）`,
+            `结果: ${integralValue}`
+          ];
+          this.showSteps = true;
+          
+          // 保存到历史记录
+          this.saveToHistory(`${expr}[${fromStr}, ${toStr}]`, integralValue, 'integral');
+        } else {
+          this.errorMessage = response.error || '积分计算失败';
+          Logger.error('Integral calculation failed:', response.error);
+        }
+      } catch (error) {
+        Logger.error('Integral calculation error:', error);
+        this.errorMessage = '计算出错，请检查表达式格式';
       }
     } else {
-      // 不定积分
+      // 不定积分 - 暂不支持，使用本地引擎
       const expr: string = this.structuredData?.function || expression;
       const result: IntegralResult = this.calculusEngine.indefiniteIntegral(expr, variable);
       
@@ -868,10 +913,8 @@ export struct AdvancedMathPage {
         
         this.result = explanation + formula;
         
-        // 生成LaTeX
         this.resultLatex = `\\int ${this.toLatex(expr)} \\, d${variable} = ${this.toLatex(result.integral)} + C`;
         
-        // 使用引擎返回的步骤
         this.steps = result.steps || [];
         this.showSteps = true;
       } else {

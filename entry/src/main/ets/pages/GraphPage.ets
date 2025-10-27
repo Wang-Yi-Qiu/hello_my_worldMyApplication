@@ -738,6 +738,7 @@ export struct GraphPage {
     // 尝试测试表达式
     try {
       const testFunc = this.createFunction(expr);
+      // 创建函数现在返回同步函数
       const testValue = testFunc(1);
       if (!isFinite(testValue)) {
         this.inputError = '表达式在 x=1 处无定义或为无穷大';
@@ -924,22 +925,165 @@ export struct GraphPage {
   
   /**
    * 创建函数
+   * 使用同步计算避免 ChartGenerator 的异步问题
    */
   private createFunction(expression: string): (x: number) => number {
     return (x: number): number => {
       try {
         // 替换 x 变量
         const expr = expression.replace(/\bx\b/g, `(${x})`);
-        const result = this.expressionEngine.evaluate(expr);
-        if (result.success && result.result) {
-          return parseFloat(result.result);
-        } else {
-          throw new Error('表达式无效');
-        }
+        // 使用同步的 safeEval 方法（简化版表达式计算）
+        const result = this.syncEvaluate(expr);
+        return result;
       } catch (error) {
+        Logger.error('Function evaluation error', error);
         throw new Error('表达式无效');
       }
     };
+  }
+  
+  /**
+   * 同步计算表达式（简化版）
+   * 用于图像绘制，不需要完整的 ExpressionEngine 功能
+   */
+  private syncEvaluate(expression: string): number {
+    // 移除空格
+    let sanitized = expression.replace(/\s/g, '');
+    
+    // 替换运算符
+    sanitized = sanitized.replace(/×/g, '*');
+    sanitized = sanitized.replace(/÷/g, '/');
+    
+    // 替换数学函数
+    sanitized = this.replaceMathFunctionsSync(sanitized);
+    
+    // 验证表达式
+    if (!/^[0-9+\-*\/.()A-Za-z,^]+$/.test(sanitized)) {
+      throw new Error('Invalid expression');
+    }
+    
+    try {
+      // 使用 Function 构造函数安全地求值
+      const func = new Function('return ' + sanitized) as () => number;
+      const result: number = func();
+      
+      if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
+        throw new Error('Invalid result');
+      }
+      
+      return result;
+    } catch (error) {
+      throw new Error('Calculation failed');
+    }
+  }
+  
+  /**
+   * 同步替换数学函数
+   */
+  private replaceMathFunctionsSync(expr: string): string {
+    let result = expr;
+    
+    // 替换幂运算符
+    result = result.replace(/\^/g, '**');
+    
+    // 替换数学常数
+    result = result.replace(/\bpi\b/gi, 'Math.PI');
+    result = result.replace(/\be\b/g, 'Math.E');
+    
+    // 替换三角函数（度转弧度）
+    // 注意：需要找到完整的函数调用并替换参数部分
+    result = this.replaceTrigFunctionSync(result, 'sin');
+    result = this.replaceTrigFunctionSync(result, 'cos');
+    result = this.replaceTrigFunctionSync(result, 'tan');
+    
+    // 反三角函数（弧度转度）
+    result = this.replaceInverseTrigFunctionSync(result, 'asin');
+    result = this.replaceInverseTrigFunctionSync(result, 'acos');
+    result = this.replaceInverseTrigFunctionSync(result, 'atan');
+    
+    // 双曲函数
+    result = result.replace(/\bsinh\(/g, 'Math.sinh(');
+    result = result.replace(/\bcosh\(/g, 'Math.cosh(');
+    result = result.replace(/\btanh\(/g, 'Math.tanh(');
+    
+    // 其他数学函数
+    const mathFunctions = ['sqrt', 'abs', 'ceil', 'floor', 'round', 'pow', 'log', 'exp'];
+    mathFunctions.forEach(func => {
+      const regex = new RegExp(`\\b${func}\\(`, 'g');
+      result = result.replace(regex, `Math.${func}(`);
+    });
+    
+    // ln 转换为 log
+    result = result.replace(/\bln\(/g, 'Math.log(');
+    
+    return result;
+  }
+  
+  /**
+   * 替换三角函数（同步版本）
+   */
+  private replaceTrigFunctionSync(expr: string, funcName: string): string {
+    const regex = new RegExp(`\\b${funcName}\\(`, 'g');
+    let result = expr;
+    
+    // 找到所有函数调用
+    let match: RegExpExecArray | null = null;
+    const re = new RegExp(`\\b${funcName}\\(`, 'g');
+    
+    while ((match = re.exec(expr)) !== null) {
+      // 找到匹配的右括号
+      let parenCount = 1;
+      let endPos = match.index + funcName.length + 1;
+      
+      while (endPos < expr.length && parenCount > 0) {
+        if (expr[endPos] === '(') parenCount++;
+        if (expr[endPos] === ')') parenCount--;
+        endPos++;
+      }
+      
+      if (parenCount === 0) {
+        // 提取参数
+        const arg = expr.substring(match.index + funcName.length + 1, endPos - 1);
+        // 构建新的表达式
+        const replacement = `Math.${funcName}((Math.PI/180)*(${arg}))`;
+        result = result.replace(`${funcName}(${arg})`, replacement);
+      }
+    }
+    
+    return result;
+  }
+  
+  /**
+   * 替换反三角函数（同步版本）
+   */
+  private replaceInverseTrigFunctionSync(expr: string, funcName: string): string {
+    let result = expr;
+    
+    // 找到所有函数调用
+    let match: RegExpExecArray | null = null;
+    const re = new RegExp(`\\b${funcName}\\(`, 'g');
+    
+    while ((match = re.exec(expr)) !== null) {
+      // 找到匹配的右括号
+      let parenCount = 1;
+      let endPos = match.index + funcName.length + 1;
+      
+      while (endPos < expr.length && parenCount > 0) {
+        if (expr[endPos] === '(') parenCount++;
+        if (expr[endPos] === ')') parenCount--;
+        endPos++;
+      }
+      
+      if (parenCount === 0) {
+        // 提取参数
+        const arg = expr.substring(match.index + funcName.length + 1, endPos - 1);
+        // 构建新的表达式
+        const replacement = `((180/Math.PI)*Math.${funcName}(${arg}))`;
+        result = result.replace(`${funcName}(${arg})`, replacement);
+      }
+    }
+    
+    return result;
   }
   
   /**

@@ -31,12 +31,12 @@ export class UnifiedMathAPI {
   /**
    * 计算表达式
    * @example
-   * api.compute('2 + 3 * 4')
-   * api.compute('sin(pi/2)')
-   * api.compute('sqrt(16)')
+   * await api.compute('2 + 3 * 4')
+   * await api.compute('sin(pi/2)')
+   * await api.compute('sqrt(16)')
    */
-  compute(expression: string, options?: ComputeOptions): ComputeResult {
-    return this.computeEngine.compute(expression, options);
+  async compute(expression: string, options?: ComputeOptions): Promise<ComputeResult> {
+    return await this.computeEngine.compute(expression, options);
   }
   
   /**
@@ -82,37 +82,37 @@ export class UnifiedMathAPI {
   /**
    * 求导
    * @example
-   * api.differentiate('x^2', 'x')      // 2x
-   * api.differentiate('sin(x)', 'x')   // cos(x)
+   * await api.differentiate('x^2', 'x')      // 2x
+   * await api.differentiate('sin(x)', 'x')   // cos(x)
    */
-  differentiate(expression: string | IMathObject, variable: string = 'x', options?: ComputeOptions): ComputeResult {
-    return this.computeEngine.differentiate(expression, variable, options);
+  async differentiate(expression: string | IMathObject, variable: string = 'x', options?: ComputeOptions): Promise<ComputeResult> {
+    return await this.computeEngine.differentiate(expression, variable, options);
   }
   
   /**
    * 求导的简写
    */
-  diff(expression: string | IMathObject, variable: string = 'x', options?: ComputeOptions): ComputeResult {
-    return this.differentiate(expression, variable, options);
+  async diff(expression: string | IMathObject, variable: string = 'x', options?: ComputeOptions): Promise<ComputeResult> {
+    return await this.differentiate(expression, variable, options);
   }
   
   /**
    * 积分
    * @example
-   * api.integrate('x^2', 'x')           // x^3/3 + C
-   * api.integrate('sin(x)', 'x', 0, pi) // 2
+   * await api.integrate('x^2', 'x')           // x^3/3 + C
+   * await api.integrate('sin(x)', 'x', 0, pi) // 2
    */
-  integrate(expression: string | IMathObject, variable: string = 'x', 
-            from?: number, to?: number, options?: ComputeOptions): ComputeResult {
-    return this.computeEngine.integrate(expression, variable, from, to, options);
+  async integrate(expression: string | IMathObject, variable: string = 'x', 
+            from?: number, to?: number, options?: ComputeOptions): Promise<ComputeResult> {
+    return await this.computeEngine.integrate(expression, variable, from, to, options);
   }
   
   /**
    * 积分的简写
    */
-  int(expression: string | IMathObject, variable: string = 'x', 
-      from?: number, to?: number, options?: ComputeOptions): ComputeResult {
-    return this.integrate(expression, variable, from, to, options);
+  async int(expression: string | IMathObject, variable: string = 'x', 
+      from?: number, to?: number, options?: ComputeOptions): Promise<ComputeResult> {
+    return await this.integrate(expression, variable, from, to, options);
   }
   
   /**
@@ -446,22 +446,22 @@ export function resetMathAPI(): void {
 /**
  * 便捷函数：直接计算
  */
-export function compute(expression: string, options?: ComputeOptions): ComputeResult {
-  return getMathAPI().compute(expression, options);
+export async function compute(expression: string, options?: ComputeOptions): Promise<ComputeResult> {
+  return await getMathAPI().compute(expression, options);
 }
 
 /**
  * 便捷函数：求导
  */
-export function diff(expression: string, variable: string = 'x'): ComputeResult {
-  return getMathAPI().differentiate(expression, variable);
+export async function diff(expression: string, variable: string = 'x'): Promise<ComputeResult> {
+  return await getMathAPI().differentiate(expression, variable);
 }
 
 /**
  * 便捷函数：积分
  */
-export function integrate(expression: string, variable: string = 'x', from?: number, to?: number): ComputeResult {
-  return getMathAPI().integrate(expression, variable, from, to);
+export async function integrate(expression: string, variable: string = 'x', from?: number, to?: number): Promise<ComputeResult> {
+  return await getMathAPI().integrate(expression, variable, from, to);
 }
 
 /**

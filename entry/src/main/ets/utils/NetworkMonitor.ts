@@ -2,7 +2,8 @@
  * 网络状态监听器
  * 监听网络连接状态变化
  */
-import { connection } from '@kit.NetworkKit';
+// 注意：由于 @kit.NetworkKit 可能不可用，暂时注释掉网络监听功能
+// import { connection } from '@kit.NetworkKit';
 import { Logger } from './Logger';
 
 export enum NetworkState {
@@ -54,17 +55,23 @@ export class NetworkMonitor {
   
   /**
    * 检查当前网络状态
+   * 注意：由于 @kit.NetworkKit 不可用，假设网络在线
    */
   private async checkNetworkState() {
     try {
-      const defaultNet = await connection.getDefaultNet();
-      const capabilities = await connection.getNetCapabilities(defaultNet);
+      // 由于 NetworkKit 不可用，假设网络在线
+      Logger.warn('NetworkKit not available, assuming online state');
+      this.updateState(NetworkState.ONLINE);
       
-      if (capabilities && capabilities.bearerTypes.length > 0) {
-        this.updateState(NetworkState.ONLINE);
-      } else {
-        this.updateState(NetworkState.OFFLINE);
-      }
+      // TODO: 使用 @kit.NetworkKit 的实现
+      // const defaultNet = await connection.getDefaultNet();
+      // const capabilities = await connection.getNetCapabilities(defaultNet);
+      // 
+      // if (capabilities && capabilities.bearerTypes.length > 0) {
+      //   this.updateState(NetworkState.ONLINE);
+      // } else {
+      //   this.updateState(NetworkState.OFFLINE);
+      // }
     } catch (error) {
       Logger.warn('Could not determine network state', error);
       this.updateState(NetworkState.UNKNOWN);

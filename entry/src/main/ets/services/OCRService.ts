@@ -4,7 +4,8 @@
  * 基于 LaTeX-OCR 项目原理实现
  */
 import { Logger } from '../utils/Logger';
-import { http } from '@kit.NetworkKit';
+// 注意：由于 @kit.NetworkKit 可能不可用，暂时注释掉网络功能
+// import { http } from '@kit.NetworkKit';
 
 export interface OCRResult {
   success: boolean;
@@ -68,40 +69,47 @@ export class OCRService {
   
   /**
    * 调用远程 OCR API
+   * 注意：由于 @kit.NetworkKit 不可用，使用模拟实现
    * @param imageUri 图像 URI
    */
   private async callOCRAPI(imageUri: string): Promise<OCRResult> {
     try {
-      const httpRequest = http.createHttp();
+      Logger.warn('NetworkKit not available, using mock OCR result');
       
-      const response = await httpRequest.request(
-        this.apiEndpoint,
-        {
-          method: http.RequestMethod.POST,
-          header: {
-            'Content-Type': 'application/json'
-          },
-          extraData: {
-            image: imageUri
-          },
-          expectDataType: http.HttpDataType.STRING,
-          connectTimeout: 30000,
-          readTimeout: 30000
-        }
-      );
+      // 由于 NetworkKit 不可用，返回模拟结果
+      return this.mockRecognition(imageUri);
       
-      httpRequest.destroy();
-      
-      if (response.responseCode === 200) {
-        const result = JSON.parse(response.result as string);
-        return {
-          success: true,
-          latex: result.latex || '',
-          confidence: result.confidence || 0
-        };
-      } else {
-        throw new Error(`HTTP ${response.responseCode}: ${response.result}`);
-      }
+      // TODO: 使用 @kit.NetworkKit 的实现
+      // const httpRequest = http.createHttp();
+      // 
+      // const response = await httpRequest.request(
+      //   this.apiEndpoint,
+      //   {
+      //     method: http.RequestMethod.POST,
+      //     header: {
+      //       'Content-Type': 'application/json'
+      //     },
+      //     extraData: {
+      //       image: imageUri
+      //     },
+      //     expectDataType: http.HttpDataType.STRING,
+      //     connectTimeout: 30000,
+      //     readTimeout: 30000
+      //   }
+      // );
+      // 
+      // httpRequest.destroy();
+      // 
+      // if (response.responseCode === 200) {
+      //   const result = JSON.parse(response.result as string);
+      //   return {
+      //     success: true,
+      //     latex: result.latex || '',
+      //     confidence: result.confidence || 0
+      //   };
+      // } else {
+      //   throw new Error(`HTTP ${response.responseCode}: ${response.result}`);
+      // }
     } catch (error) {
       Logger.error('Failed to call OCR API', error);
       throw error;

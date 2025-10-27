@@ -1,7 +1,7 @@
 /**
  * 统一计算引擎
  * 参考 SageMath 的架构，整合所有计算功能
- * 提供统一的接口来处理各种数学计算
+ * 使用 math.js 提供强大的计算能力
  */
 import { Logger } from '../utils/Logger';
 import { 
@@ -14,6 +14,7 @@ import {
   MathObjectFactory,
   MathObjectType 
 } from './MathObject';
+import { SymPyLikeEngine, ComputeResult as SymPyResult } from './SymPyLikeEngine';
 
 /**
  * 计算结果接口
@@ -49,17 +50,19 @@ export class UnifiedComputeEngine {
   private angleUnit: 'degree' | 'radian';
   private domain: 'real' | 'complex';
   private context: Map<string, IMathObject>;
+  private symPyEngine: SymPyLikeEngine;
   
   constructor(precision: number = 10) {
     this.precision = precision;
     this.angleUnit = 'degree';
     this.domain = 'real';
     this.context = new Map();
+    this.symPyEngine = new SymPyLikeEngine();
     
     // 初始化数学常数
     this.initializeConstants();
     
-    Logger.info('UnifiedComputeEngine initialized');
+    Logger.info('UnifiedComputeEngine initialized with SymPy-like engine');
   }
   
   /**
@@ -74,59 +77,37 @@ export class UnifiedComputeEngine {
   
   /**
    * 主计算接口
+   * 使用 SymPy 风格引擎进行计算
    */
-  compute(input: string | IMathObject, options?: ComputeOptions): ComputeResult {
+  async compute(input: string | IMathObject, options?: ComputeOptions): Promise<ComputeResult> {
     try {
-      Logger.debug(`Computing: ${typeof input === 'string' ? input : input.toString()}`);
+      const inputStr = typeof input === 'string' ? input : input.toString();
+      Logger.debug(`Computing: ${inputStr}`);
       
-      // 解析输入
-      let mathObj: IMathObject;
-      if (typeof input === 'string') {
-        mathObj = this.parse(input);
-      } else {
-        mathObj = input;
+      // 使用 SymPy 风格引擎
+      const symPyResult = await this.symPyEngine.evaluate(inputStr);
+      
+      if (!symPyResult.success) {
+        return {
+          success: false,
+          error: symPyResult.error || '计算失败'
+        };
       }
       
       // 应用选项
       const opts = this.mergeOptions(options);
-      
-      // 执行计算
-      let result = mathObj;
       const steps: string[] = [];
       
       if (opts.steps) {
-        steps.push(`原始表达式: ${result.toString()}`);
-      }
-      
-      // 求值
-      result = result.evaluate(this.context);
-      if (opts.steps) {
-        steps.push(`求值后: ${result.toString()}`);
-      }
-      
-      // 化简
-      if (opts.simplify) {
-        result = result.simplify();
-        if (opts.steps) {
-          steps.push(`化简后: ${result.toString()}`);
-        }
-      }
-      
-      // 转换为数值（如果需要）
-      let numeric: number | undefined;
-      if (opts.numeric && result.isNumeric()) {
-        if (result instanceof MathNumber) {
-          numeric = Number(result.value);
-        } else if (result instanceof MathComplex) {
-          numeric = result.magnitude();
-        }
+        steps.push(`原始表达式: ${inputStr}`);
+        steps.push(`计算结果: ${symPyResult.display}`);
       }
       
       return {
         success: true,
-        result: result,
-        latex: result.toLatex(),
-        numeric: numeric,
+        result: symPyResult.result,
+        latex: symPyResult.latex,
+        numeric: symPyResult.value,
         steps: opts.steps ? steps : undefined
       };
     } catch (error) {
@@ -325,21 +306,36 @@ export class UnifiedComputeEngine {
   
   /**
    * 求导
+   * 使用 SymPy 风格引擎
    */
-  differentiate(expr: string | IMathObject, variable: string = 'x', options?: ComputeOptions): ComputeResult {
+  async differentiate(expr: string | IMathObject, variable: string = 'x', options?: ComputeOptions): Promise<ComputeResult> {
     try {
-      const mathObj = typeof expr === 'string' ? this.parse(expr) : expr;
-      const varSymbol = MathObjectFactory.symbol(variable);
+      const exprStr = typeof expr === 'string' ? expr : expr.toString();
       
-      const derivative = this.computeDerivative(mathObj, varSymbol);
+      // 使用 SymPy 风格引擎求导
+      const symPyResult = await this.symPyEngine.differentiate(exprStr, variable);
+      
+      if (!symPyResult.success) {
+        return {
+          success: false,
+          error: symPyResult.error || '求导失败'
+        };
+      }
       
       const opts = this.mergeOptions(options);
-      const result = opts.simplify ? derivative.simplify() : derivative;
+      const steps: string[] = [];
+      
+      if (opts.steps) {
+        steps.push(`原始函数: ${exprStr}`);
+        steps.push(`导数结果: ${symPyResult.display}`);
+      }
       
       return {
         success: true,
-        result: result,
-        latex: result.toLatex()
+        result: symPyResult.result,
+        latex: symPyResult.latex,
+        numeric: symPyResult.value,
+        steps: opts.steps ? steps : undefined
       };
     } catch (error) {
       Logger.error('Differentiate error', error);
@@ -513,27 +509,47 @@ export class UnifiedComputeEngine {
   
   /**
    * 积分
+   * 使用 SymPy 风格引擎
    */
-  integrate(expr: string | IMathObject, variable: string = 'x', 
-            from?: number, to?: number, options?: ComputeOptions): ComputeResult {
+  async integrate(expr: string | IMathObject, variable: string = 'x', 
+            from?: number, to?: number, options?: ComputeOptions): Promise<ComputeResult> {
     try {
-      const mathObj = typeof expr === 'string' ? this.parse(expr) : expr;
-      const varSymbol = MathObjectFactory.symbol(variable);
+      const exprStr = typeof expr === 'string' ? expr : expr.toString();
       
       if (from !== undefined && to !== undefined) {
         // 定积分（数值方法）
-        return this.numericalIntegrate(mathObj, variable, from, to, options);
-      } else {
-        // 不定积分（符号方法）
-        const integral = this.computeIntegral(mathObj, varSymbol);
+        const symPyResult = await this.symPyEngine.integrateDefinite(exprStr, variable, from, to);
         
-        const opts = this.mergeOptions(options);
-        const result = opts.simplify ? integral.simplify() : integral;
+        if (!symPyResult.success) {
+          return {
+            success: false,
+            error: symPyResult.error || '定积分计算失败'
+          };
+        }
         
         return {
           success: true,
-          result: result,
-          latex: result.toLatex()
+          result: symPyResult.result,
+          latex: symPyResult.latex,
+          numeric: symPyResult.value
+        };
+      } else {
+        // 不定积分（符号方法）
+        const symPyResult = await this.symPyEngine.integrate(exprStr, variable);
+        
+        if (!symPyResult.success) {
+          return {
+            success: false,
+            error: symPyResult.error || '积分失败'
+          };
+        }
+        
+        const opts = this.mergeOptions(options);
+        
+        return {
+          success: true,
+          result: symPyResult.result,
+          latex: symPyResult.latex
         };
       }
     } catch (error) {

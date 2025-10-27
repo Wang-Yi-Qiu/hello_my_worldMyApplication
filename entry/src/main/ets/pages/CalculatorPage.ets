@@ -7,6 +7,9 @@ import { Logger } from '../utils/Logger';
 import { ExpressionEngine, EvaluateResult } from '../modules/ExpressionEngine';
 import { DataManager } from '../modules/DataManager';
 import { Note, NoteManager, NoteExpression } from '../models/Note';
+import { backendAPI } from '../services/BackendAPIService';
+import { testBackendConnection } from '../utils/BackendConnectionTest';
+import { BackendCalculationResponse, BackendAPIResponse, BackendResponseData } from '../core/BackendTypes';
 import { promptAction } from '@kit.ArkUI';
 
 // 计算器模式
@@ -40,12 +43,40 @@ export struct CalculatorPage {
   @State programmerBase: 'DEC' | 'HEX' | 'OCT' | 'BIN' = 'DEC'; // 程序员模式的进制
   @State angleMode: 'DEG' | 'RAD' = 'DEG'; // 角度模式：度数或弧度
   @State showAdvancedFunctions: boolean = false; // 显示高级函数面板
+  @State isBackendConnected: boolean = false; // 后端连接状态
+  @State backendStatus: string = '检查中...'; // 后端状态信息
   private engine: ExpressionEngine = new ExpressionEngine();
   private dataManager: DataManager = new DataManager();
 
   async aboutToAppear() {
     Logger.info('CalculatorPage loaded');
+    // 初始化角度模式
+    this.engine.setAngleUnit(this.angleMode === 'DEG' ? 'degree' : 'radian');
     await this.loadNotes();
+    await this.checkBackendConnection();
+  }
+
+  /**
+   * 检查后端连接状态
+   */
+  async checkBackendConnection() {
+    try {
+      this.backendStatus = '连接中...';
+      // 使用统一的连接测试函数
+      const isConnected = await testBackendConnection();
+      this.isBackendConnected = isConnected;
+      this.backendStatus = isConnected ? '✅ 后端已连接' : '❌ 后端未连接';
+      
+      if (isConnected) {
+        Logger.info('后端服务连接成功，可以使用高级数学功能');
+      } else {
+        Logger.warn('后端服务连接失败，将使用本地计算引擎');
+      }
+    } catch (error) {
+      Logger.error('后端连接检查失败:', error);
+      this.backendStatus = '❌ 连接失败';
+      this.isBackendConnected = false;
+    }
   }
 
   /**
@@ -163,6 +194,8 @@ export struct CalculatorPage {
       case 'deg':
         // 角度/弧度模式切换
         this.angleMode = this.angleMode === 'DEG' ? 'RAD' : 'DEG';
+        // 同步到 ExpressionEngine
+        this.engine.setAngleUnit(this.angleMode === 'DEG' ? 'degree' : 'radian');
         promptAction.showToast({ message: `已切换到${this.angleMode === 'DEG' ? '角度' : '弧度'}模式` });
         break;
       
@@ -372,6 +405,9 @@ export struct CalculatorPage {
     // 移除空格
     let sanitized = expr.replace(/\s/g, '');
     
+    Logger.debug(`Original programmer expression: ${expr}`);
+    Logger.debug(`Sanitized programmer expression: ${sanitized}`);
+    
     // 替换运算符
     sanitized = sanitized.replace(/×/g, '*');
     sanitized = sanitized.replace(/÷/g, '/');
@@ -380,7 +416,7 @@ export struct CalculatorPage {
     // 查找所有十六进制数字模式（包含A-F的数字序列）
     sanitized = this.convertHexNumbers(sanitized);
     
-    Logger.debug(`Sanitized programmer expression: ${sanitized}`);
+    Logger.debug(`After hex conversion: ${sanitized}`);
     
     // 使用 Function 安全地求值
     // 验证表达式只包含安全字符（包括位运算符）
@@ -395,7 +431,10 @@ export struct CalculatorPage {
       const func = new Function('return ' + sanitized) as () => number;
       const result: number = func();
       
+      Logger.debug(`Programmer calculation result: ${result}`);
+      
       if (typeof result !== 'number' || isNaN(result)) {
+        Logger.error(`Invalid result type: ${typeof result}, value: ${result}`);
         throw new Error('计算结果无效');
       }
       
@@ -411,28 +450,56 @@ export struct CalculatorPage {
    * 例如：1A + 2B -> 0x1A + 0x2B
    */
   convertHexNumbers(expr: string): string {
-    // 匹配包含A-F的数字序列
-    // 正则：数字开头，包含至少一个A-F字母的数字序列
-    const hexPattern = /\b([0-9]*[A-F]+[0-9A-F]*)\b/gi;
+    Logger.debug(`Converting hex numbers in: ${expr}`);
     
-    return expr.replace(hexPattern, (match) => {
-      // 验证是否是有效的十六进制数
-      if (/^[0-9A-F]+$/i.test(match)) {
-        return '0x' + match;
+    // 先处理二进制数字 0b...
+    let result = expr.replace(/\b0b([01]+)\b/gi, (match: string, binary: string) => {
+      const decimal = parseInt(binary, 2);
+      Logger.debug(`Converted binary ${match} to ${decimal}`);
+      return decimal.toString();
+    });
+    
+    // 处理纯二进制数字（例如：0011, 0001 等以0开头且只包含0和1的数字）
+    // 这些数字可能以0开头，需要特别处理
+    result = result.replace(/(?<!\d)\b[01]+\b(?!\d)/g, (match: string) => {
+      // 只处理看起来像二进制的数字（全是0和1）
+      const decimal = parseInt(match, 2);
+      if (!isNaN(decimal)) {
+        Logger.debug(`Converted pure binary ${match} to ${decimal}`);
+        return decimal.toString();
       }
       return match;
     });
+    
+    // 再处理十六进制数字（包含A-F的序列）
+    const hexPattern = /\b([0-9]*[A-F]+[0-9A-F]*)\b/gi;
+    
+    result = result.replace(hexPattern, (match: string) => {
+      // 验证是否是有效的十六进制数
+      if (/^[0-9A-F]+$/i.test(match)) {
+        const hexValue = '0x' + match;
+        Logger.debug(`Converted ${match} to ${hexValue}`);
+        return hexValue;
+      }
+      Logger.debug(`Skipped invalid hex: ${match}`);
+      return match;
+    });
+    
+    Logger.debug(`After hex conversion: ${result}`);
+    return result;
   }
 
   /**
    * 计算表达式
    */
-  calculateResult() {
+  async calculateResult() {
     if (!this.expression) {
       return;
     }
 
     Logger.info(`Calculating: ${this.expression}`);
+    Logger.info(`Current angle mode: ${this.angleMode}`);
+    Logger.info(`Engine angle unit: ${this.engine.getAngleUnit()}`);
     
     // 替换特殊符号
     // 注意：不在这里替换 π 和 e，让 ExpressionEngine 处理
@@ -443,7 +510,16 @@ export struct CalculatorPage {
     // 将 π 替换为 pi（ExpressionEngine 会处理）
     processedExpression = processedExpression.replace(/π/g, 'pi');
     
-    const evalResult: EvaluateResult = this.engine.evaluate(processedExpression);
+    Logger.info(`Processed expression: ${processedExpression}`);
+    
+    // 暂时不使用后端计算基础表达式
+    // 后端主要用于高级数学功能（如微积分、符号运算等）
+    // TODO: 实现高级数学功能的后端调用
+    
+    // 使用本地计算引擎
+    const evalResult: EvaluateResult = await this.engine.evaluate(processedExpression);
+    
+    Logger.info(`Evaluation result: ${JSON.stringify(evalResult)}`);
     
     if (evalResult.success && evalResult.result) {
       this.result = evalResult.result;
@@ -454,9 +530,46 @@ export struct CalculatorPage {
       
       // 将结果作为新的表达式（可以继续计算）
       this.expression = evalResult.result;
+      
+      Logger.info(`本地计算结果: ${this.expression} = ${this.result}`);
     } else {
       this.result = evalResult.error || '计算错误';
       this.isError = true;
+      Logger.error(`Calculation failed: ${evalResult.error}`);
+    }
+  }
+
+  /**
+   * 使用后端API计算表达式
+   */
+  async calculateWithBackend(expression: string): Promise<BackendCalculationResponse> {
+    try {
+      // 使用后端的execute接口
+      const response: BackendAPIResponse<BackendResponseData> = await backendAPI.request<BackendResponseData>({
+        url: '/execute',
+        method: 'POST',
+        data: { code: expression }
+      });
+
+      if (response.success && response.data) {
+        const result: BackendCalculationResponse = {
+          success: true,
+          result: response.data.result || response.data.output
+        };
+        return result;
+      } else {
+        const error: BackendCalculationResponse = {
+          success: false,
+          error: response.error || '后端计算失败'
+        };
+        return error;
+      }
+    } catch (error) {
+      const errorResponse: BackendCalculationResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : '后端请求失败'
+      };
+      return errorResponse;
     }
   }
 
@@ -478,6 +591,9 @@ export struct CalculatorPage {
 
   build() {
     Column() {
+      // 后端状态显示
+      this.buildBackendStatusBar()
+      
       // 顶部模式切换栏
       Row() {
         // 模式切换按钮组
@@ -1491,6 +1607,60 @@ export struct CalculatorPage {
   }
 
   /**
+   * 添加表达式到笔记
+   */
+  async addExpressionToNote() {
+    if (!this.currentNote || !this.expression || !this.result) {
+      return;
+    }
+    
+    const newExpression: NoteExpression = {
+      id: Date.now().toString(),
+      expression: this.expression,
+      result: this.result,
+      timestamp: Date.now()
+    };
+    
+    this.currentNote.expressions.push(newExpression);
+    this.currentNote.updated_at = Date.now();
+    
+    const success = await NoteManager.saveNote(this.currentNote);
+    if (success) {
+      await this.loadNotes();
+      promptAction.showToast({
+        message: '表达式已添加',
+        duration: 2000
+      });
+    }
+  }
+
+  /**
+   * 从笔记中移除表达式
+   */
+  async removeExpressionFromNote(expressionId: string) {
+    if (!this.currentNote) {
+      return;
+    }
+    
+    this.currentNote.expressions = this.currentNote.expressions.filter(
+      expr => expr.id !== expressionId
+    );
+    this.currentNote.updated_at = Date.now();
+    await NoteManager.saveNote(this.currentNote);
+    await this.loadNotes();
+  }
+
+  /**
+   * 格式化日期
+   */
+  formatDate(timestamp: number): string {
+    const date = new Date(timestamp);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}月${day}日`;
+  }
+
+  /**
    * 构建表达式项
    */
   @Builder buildExpressionItem(expr: NoteExpression) {
@@ -1517,8 +1687,8 @@ export struct CalculatorPage {
         .fontColor(AppTheme.ERROR_COLOR)
         .borderRadius(AppTheme.BORDER_RADIUS_MINI)
         .height(28)
-        .onClick(() => {
-          this.removeExpressionFromNote(expr.id);
+        .onClick(async () => {
+          await this.removeExpressionFromNote(expr.id);
         })
     }
     .width('100%')
@@ -1602,81 +1772,32 @@ export struct CalculatorPage {
     }
   }
 
-  /**
-   * 添加表达式到笔记
-   */
-  addExpressionToNote() {
-    if (!this.currentNote || !this.expression) {
-      promptAction.showToast({ message: '请输入表达式' });
-      return;
-    }
-    
-    // 计算表达式
-    this.calculateResult();
-    
-    if (!this.isError && this.result !== '0') {
-      this.currentNote = NoteManager.addExpression(
-        this.currentNote,
-        this.expression,
-        this.result
-      );
-      
-      // 清空表达式输入
-      this.expression = '';
-      this.result = '0';
-      
-      promptAction.showToast({ message: '表达式已添加' });
-      Logger.info('Expression added to note');
-    }
-  }
 
   /**
-   * 从笔记中删除表达式
+   * 后端状态栏
    */
-  removeExpressionFromNote(expressionId: string) {
-    if (!this.currentNote) {
-      return;
+  @Builder buildBackendStatusBar() {
+    Row() {
+      Text(this.backendStatus)
+        .fontSize(12)
+        .fontColor(this.isBackendConnected ? '#4CAF50' : '#F44336')
+        .margin({ right: 8 })
+      
+      if (!this.isBackendConnected) {
+        Button('重试')
+          .fontSize(10)
+          .height(24)
+          .padding({ left: 8, right: 8 })
+          .onClick(() => {
+            this.checkBackendConnection();
+          })
+      }
     }
-    
-    this.currentNote = NoteManager.removeExpression(this.currentNote, expressionId);
-    promptAction.showToast({ message: '表达式已删除' });
-  }
-
-  /**
-   * 格式化日期
-   */
-  formatDate(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    
-    // 小于1分钟
-    if (diff < 60000) {
-      return '刚刚';
-    }
-    
-    // 小于1小时
-    if (diff < 3600000) {
-      const minutes = Math.floor(diff / 60000);
-      return `${minutes}分钟前`;
-    }
-    
-    // 小于24小时
-    if (diff < 86400000) {
-      const hours = Math.floor(diff / 3600000);
-      return `${hours}小时前`;
-    }
-    
-    // 小于7天
-    if (diff < 604800000) {
-      const days = Math.floor(diff / 86400000);
-      return `${days}天前`;
-    }
-    
-    // 显示日期
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    return `${month}月${day}日`;
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+    .backgroundColor(this.isBackendConnected ? '#E8F5E8' : '#FFEBEE')
+    .justifyContent(FlexAlign.SpaceBetween)
+    .alignItems(VerticalAlign.Center)
   }
 }
 

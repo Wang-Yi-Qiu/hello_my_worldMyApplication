@@ -11,6 +11,7 @@ import { AdvancedMathPage } from './AdvancedMathPage';
 import { GraphPage } from './GraphPage';
 import { ImageOCRPage } from './ImageOCRPage';
 import { SettingsPage } from './SettingsPage';
+import { testBackendConnection } from '../utils/BackendConnectionTest';
 import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -20,16 +21,45 @@ import { BusinessError } from '@kit.BasicServicesKit';
 struct MainPage {
   @State currentIndex: number = 0;
   @StorageLink('currentTheme') currentTheme: string = 'light';
+  @State backendStatus: string = '检查中...';
+  @State isBackendConnected: boolean = false;
   private themeManager: ThemeManager = ThemeManager.getInstance();
 
   aboutToAppear() {
     Logger.info('MainPage loaded');
     // 初始化主题
     AppStorage.setOrCreate('currentTheme', this.themeManager.getCurrentTheme());
+    // 测试后端连接
+    this.checkBackendConnection();
+  }
+
+  /**
+   * 检查后端连接状态
+   */
+  async checkBackendConnection() {
+    try {
+      this.backendStatus = '连接中...';
+      const isConnected = await testBackendConnection();
+      this.isBackendConnected = isConnected;
+      this.backendStatus = isConnected ? '✅ 后端服务已连接' : '❌ 后端服务未连接';
+      
+      if (!isConnected) {
+        Logger.warn('后端服务连接失败，将使用本地计算引擎');
+      } else {
+        Logger.info('后端服务连接成功，可以使用高级数学功能');
+      }
+    } catch (error) {
+      Logger.error('后端连接检查失败:', error);
+      this.backendStatus = '❌ 连接检查失败';
+      this.isBackendConnected = false;
+    }
   }
 
   build() {
     Column() {
+      // 后端状态显示
+      this.buildBackendStatusBar()
+      
       // 内容区域
       Tabs({ index: this.currentIndex }) {
         TabContent() {
@@ -233,6 +263,33 @@ struct MainPage {
     .borderRadius(AppTheme.BORDER_RADIUS_MEDIUM)
     .margin({ bottom: AppTheme.SPACING_NORMAL })
     .onClick(onClick)
+  }
+
+  /**
+   * 后端状态栏
+   */
+  @Builder buildBackendStatusBar() {
+    Row() {
+      Text(this.backendStatus)
+        .fontSize(12)
+        .fontColor(this.isBackendConnected ? '#4CAF50' : '#F44336')
+        .margin({ right: 8 })
+      
+      if (!this.isBackendConnected) {
+        Button('重试')
+          .fontSize(10)
+          .height(24)
+          .padding({ left: 8, right: 8 })
+          .onClick(() => {
+            this.checkBackendConnection();
+          })
+      }
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 8, bottom: 4 })
+    .backgroundColor(this.isBackendConnected ? '#E8F5E8' : '#FFEBEE')
+    .justifyContent(FlexAlign.SpaceBetween)
+    .alignItems(VerticalAlign.Center)
   }
 
   /**

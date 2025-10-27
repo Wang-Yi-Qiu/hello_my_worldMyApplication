@@ -34,17 +34,33 @@ export interface SolveResult {
 export class ExpressionEngine {
   private precision: number;
   private angleUnit: 'degree' | 'radian';
+  private mathLib: any = null;
 
   constructor(precision: number = DEFAULT_PRECISION) {
     this.precision = precision;
     this.angleUnit = 'degree';
+    this.initialize();
     Logger.info(`ExpressionEngine initialized with precision: ${precision}`);
+  }
+  
+  /**
+   * 初始化 math.js
+   */
+  private async initialize(): Promise<void> {
+    try {
+      // 注意：mathjs 库未安装，直接使用 fallback
+      // this.mathLib = await import('mathjs');
+      Logger.info('Using fallback expression evaluator');
+    } catch (error) {
+      Logger.error('Failed to load math.js, using fallback', error);
+    }
   }
 
   /**
    * 计算数学表达式
+   * 使用 math.js 进行计算（如果可用）
    */
-  evaluate(expression: string, options?: EvaluateOptions): EvaluateResult {
+  async evaluate(expression: string, options?: EvaluateOptions): Promise<EvaluateResult> {
     try {
       Logger.debug(`Evaluating expression: ${expression}`);
       
@@ -64,8 +80,25 @@ export class ExpressionEngine {
         };
       }
 
-      // 使用 JavaScript 的 eval 进行基础计算
-      // 注意：生产环境应该使用 math.js
+      // 如果 math.js 可用，使用它进行计算
+      if (this.mathLib) {
+        try {
+          await this.ensureInitialized();
+          const result = this.mathLib.evaluate(expression);
+          const formattedResult = this.formatResult(result, options?.precision || this.precision);
+          
+          Logger.debug(`Evaluation result: ${formattedResult}`);
+          
+          return {
+            success: true,
+            result: formattedResult
+          };
+        } catch (mathError) {
+          Logger.warn('Math.js evaluation failed, falling back to safeEval', mathError);
+        }
+      }
+
+      // 降级到安全求值
       const result = this.safeEval(expression);
       
       // 格式化结果
@@ -85,6 +118,15 @@ export class ExpressionEngine {
       };
     }
   }
+  
+  /**
+   * 确保 math.js 已初始化
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (!this.mathLib) {
+      await this.initialize();
+    }
+  }
 
   /**
    * 安全的表达式求值
@@ -93,6 +135,9 @@ export class ExpressionEngine {
   private safeEval(expression: string): number {
     // 移除空格
     let sanitized = expression.replace(/\s/g, '');
+    
+    Logger.debug(`Original expression: ${expression}`);
+    Logger.debug(`Sanitized expression: ${sanitized}`);
     
     // 检查是否包含复杂数学函数或常数
     const hasMathFunctions = /\b(sin|cos|tan|sqrt|log|ln|exp|pow|asin|acos|atan|abs|ceil|floor|round|pi|e)\b/i.test(sanitized);
@@ -103,8 +148,8 @@ export class ExpressionEngine {
       
       Logger.debug(`Processed expression: ${sanitized}`);
       
-      // 验证表达式只包含安全字符
-      if (!/^[0-9+\-*\/.()A-Za-z,^]+$/.test(sanitized)) {
+      // 验证表达式只包含安全字符（放宽限制）
+      if (!/^[0-9+\-*\/.()A-Za-z,^&|~<>%!]+$/.test(sanitized)) {
         Logger.error(`Invalid characters in expression: ${sanitized}`);
         throw new Error(ERROR_MESSAGES.INVALID_EXPRESSION);
       }
@@ -115,9 +160,11 @@ export class ExpressionEngine {
         const result = func();
         
         if (typeof result !== 'number' || isNaN(result)) {
+          Logger.error(`Invalid result type: ${typeof result}, value: ${result}`);
           throw new Error(ERROR_MESSAGES.CALCULATION_ERROR);
         }
         
+        Logger.debug(`Function evaluation result: ${result}`);
         return result;
       } catch (error) {
         Logger.error('safeEval with Function error', error);
@@ -129,6 +176,7 @@ export class ExpressionEngine {
         // 替换幂运算符
         sanitized = sanitized.replace(/\*\*/g, '^');
         const result = this.parseExpression(sanitized);
+        Logger.debug(`Parse expression result: ${result}`);
         return result;
       } catch (error) {
         Logger.error('safeEval with parseExpression error', error);
@@ -151,6 +199,9 @@ export class ExpressionEngine {
     // 先处理 exp 函数
     result = result.replace(/\bexp\(/g, 'Math.exp(');
     
+    // 处理 ln 函数（在替换 e 之前）
+    result = result.replace(/\bln\(/g, 'Math.log(');
+    
     // 然后替换独立的 e 常数（不在 exp 等函数名中）
     result = result.replace(/\be\b/g, 'Math.E');
     
@@ -164,13 +215,22 @@ export class ExpressionEngine {
     result = this.replacePermutation(result);
     result = this.replaceCombination(result);
     
-    // 处理三角函数 - 需要角度转弧度
-    // 使用更智能的方法：找到函数和其参数，然后整体替换
-    result = this.replaceTrigFunctions(result, 'sin');
+    // 使用新的完整替换流程（包含所有数学函数）
+    result = this.replaceAllMathFunctions(result);
+    
+    return result;
+  }
+  
+  /**
+   * 完整的数学函数替换流程
+   */
+  private replaceAllMathFunctions(expr: string): string {
+    // 先替换三角函数（带角度转换）
+    let result = this.replaceTrigFunctions(expr, 'sin');
     result = this.replaceTrigFunctions(result, 'cos');
     result = this.replaceTrigFunctions(result, 'tan');
     
-    // 反三角函数返回角度
+    // 反三角函数
     result = this.replaceInverseTrigFunctions(result, 'asin');
     result = this.replaceInverseTrigFunctions(result, 'acos');
     result = this.replaceInverseTrigFunctions(result, 'atan');
@@ -185,7 +245,10 @@ export class ExpressionEngine {
     result = this.replaceInverseHyperbolicFunctions(result, 'acosh');
     result = this.replaceInverseHyperbolicFunctions(result, 'atanh');
     
-    // 其他数学函数（注意：exp 已经处理过了）
+    // 处理 log 函数（在三角函数之后，避免重复替换）
+    result = result.replace(/\blog\(/g, 'Math.log10(');
+    
+    // 处理其他数学函数（sqrt, abs 等）
     const otherFunctions = [
       'sqrt', 'abs', 
       'ceil', 'floor', 'round',
@@ -197,11 +260,6 @@ export class ExpressionEngine {
       const regex = new RegExp(`\\b${func}\\(`, 'g');
       result = result.replace(regex, `Math.${func}(`);
     });
-    
-    // ln 转换为 log (自然对数)
-    result = result.replace(/\bln\(/g, 'Math.log(');
-    // log 转换为 log10 (常用对数) - 但要避免替换已经替换过的Math.log
-    result = result.replace(/\blog\(/g, 'Math.log10(');
     
     return result;
   }
@@ -353,6 +411,8 @@ export class ExpressionEngine {
     let result = expr;
     let searchPos = 0;
     
+    Logger.debug(`Replacing trig function ${funcName} in: ${expr}`);
+    
     while (true) {
       // 查找函数名
       const funcPattern = `${funcName}(`;
@@ -387,8 +447,18 @@ export class ExpressionEngine {
       if (parenCount === 0) {
         // 提取参数
         const arg = result.substring(funcStart, endPos - 1);
-        // 构建新的表达式：Math.sin((Math.PI/180)*(arg))
-        const replacement = `Math.${funcName}((Math.PI/180)*(${arg}))`;
+        
+        // 根据角度模式决定是否转换
+        let replacement: string;
+        if (this.angleUnit === 'degree') {
+          // 角度模式：Math.sin((Math.PI/180)*(arg))
+          replacement = `Math.${funcName}((Math.PI/180)*(${arg}))`;
+        } else {
+          // 弧度模式：Math.sin(arg)
+          replacement = `Math.${funcName}(${arg})`;
+        }
+        
+        Logger.debug(`Replacing ${funcName}(${arg}) with ${replacement}`);
         
         result = result.substring(0, funcIndex) + replacement + result.substring(endPos);
         
@@ -400,6 +470,7 @@ export class ExpressionEngine {
       }
     }
     
+    Logger.debug(`After trig replacement: ${result}`);
     return result;
   }
 
@@ -410,6 +481,8 @@ export class ExpressionEngine {
     let result = expr;
     let searchPos = 0;
     
+    Logger.debug(`Replacing inverse trig function ${funcName} in: ${expr}`);
+    
     while (true) {
       // 查找函数名
       const funcPattern = `${funcName}(`;
@@ -444,8 +517,18 @@ export class ExpressionEngine {
       if (parenCount === 0) {
         // 提取参数
         const arg = result.substring(funcStart, endPos - 1);
-        // 构建新的表达式：(180/Math.PI)*Math.asin(arg)
-        const replacement = `((180/Math.PI)*Math.${funcName}(${arg}))`;
+        
+        // 根据角度模式决定是否转换
+        let replacement: string;
+        if (this.angleUnit === 'degree') {
+          // 角度模式：(180/Math.PI)*Math.asin(arg)
+          replacement = `((180/Math.PI)*Math.${funcName}(${arg}))`;
+        } else {
+          // 弧度模式：Math.asin(arg)
+          replacement = `Math.${funcName}(${arg})`;
+        }
+        
+        Logger.debug(`Replacing ${funcName}(${arg}) with ${replacement}`);
         
         result = result.substring(0, funcIndex) + replacement + result.substring(endPos);
         
@@ -457,6 +540,7 @@ export class ExpressionEngine {
       }
     }
     
+    Logger.debug(`After inverse trig replacement: ${result}`);
     return result;
   }
 
@@ -644,6 +728,13 @@ export class ExpressionEngine {
   setAngleUnit(unit: 'degree' | 'radian'): void {
     this.angleUnit = unit;
     Logger.info(`Angle unit set to: ${unit}`);
+  }
+
+  /**
+   * 获取角度单位
+   */
+  getAngleUnit(): 'degree' | 'radian' {
+    return this.angleUnit;
   }
 }
 

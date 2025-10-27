@@ -11,7 +11,8 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { http } from '@kit.NetworkKit';
+// 注意：由于 @kit.NetworkKit 可能不可用，暂时注释掉网络功能
+// import { http } from '@kit.NetworkKit';
 
 export interface SageMathRequest {
   code: string;
@@ -71,44 +72,53 @@ export class SageMathService {
   
   /**
    * 在 SageMathCell 上执行代码
+   * 注意：由于 @kit.NetworkKit 不可用，返回失败
    */
   private async executeOnSageMathCell(request: SageMathRequest): Promise<SageMathResponse> {
     try {
-      const httpRequest = http.createHttp();
+      Logger.warn('NetworkKit not available, SageMathCell execution disabled');
       
-      const response = await httpRequest.request(
-        SageMathService.SAGEMATH_CELL_URL,
-        {
-          method: http.RequestMethod.POST,
-          header: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          extraData: `code=${encodeURIComponent(request.code)}`,
-          expectDataType: http.HttpDataType.STRING,
-          connectTimeout: request.timeout || 30000,
-          readTimeout: request.timeout || 30000
-        }
-      );
+      return {
+        success: false,
+        error: '网络功能暂不可用，请使用本地计算引擎'
+      };
       
-      httpRequest.destroy();
-      
-      if (response.responseCode === 200) {
-        const data = JSON.parse(response.result as string);
-        
-        return {
-          success: data.success || false,
-          result: data.stdout || data.output,
-          output: data.stdout,
-          error: data.stderr,
-          stdout: data.stdout,
-          stderr: data.stderr
-        };
-      } else {
-        return {
-          success: false,
-          error: `HTTP ${response.responseCode}: ${response.result}`
-        };
-      }
+      // TODO: 使用 @kit.NetworkKit 的实现
+      // const httpRequest = http.createHttp();
+      // 
+      // const response = await httpRequest.request(
+      //   SageMathService.SAGEMATH_CELL_URL,
+      //   {
+      //     method: http.RequestMethod.POST,
+      //     header: {
+      //       'Content-Type': 'application/x-www-form-urlencoded'
+      //     },
+      //     extraData: `code=${encodeURIComponent(request.code)}`,
+      //     expectDataType: http.HttpDataType.STRING,
+      //     connectTimeout: request.timeout || 30000,
+      //     readTimeout: request.timeout || 30000
+      //   }
+      // );
+      // 
+      // httpRequest.destroy();
+      // 
+      // if (response.responseCode === 200) {
+      //   const data = JSON.parse(response.result as string);
+      //   
+      //   return {
+      //     success: data.success || false,
+      //     result: data.stdout || data.output,
+      //     output: data.stdout,
+      //     error: data.stderr,
+      //     stdout: data.stdout,
+      //     stderr: data.stderr
+      //   };
+      // } else {
+      //   return {
+      //     success: false,
+      //     error: `HTTP ${response.responseCode}: ${response.result}`
+      //   };
+      // }
     } catch (error) {
       Logger.error('SageMathCell request error', error);
       return {
@@ -120,45 +130,54 @@ export class SageMathService {
   
   /**
    * 在自定义服务器上执行代码
+   * 注意：由于 @kit.NetworkKit 不可用，返回失败
    */
   private async executeOnCustomServer(request: SageMathRequest): Promise<SageMathResponse> {
     try {
-      const httpRequest = http.createHttp();
+      Logger.warn('NetworkKit not available, custom server execution disabled');
       
-      const response = await httpRequest.request(
-        `${this.customServerUrl}/execute`,
-        {
-          method: http.RequestMethod.POST,
-          header: {
-            'Content-Type': 'application/json'
-          },
-          extraData: JSON.stringify({
-            code: request.code,
-            timeout: request.timeout || 30000
-          }),
-          expectDataType: http.HttpDataType.STRING,
-          connectTimeout: request.timeout || 30000,
-          readTimeout: request.timeout || 30000
-        }
-      );
+      return {
+        success: false,
+        error: '网络功能暂不可用，请使用本地计算引擎'
+      };
       
-      httpRequest.destroy();
-      
-      if (response.responseCode === 200) {
-        const data = JSON.parse(response.result as string);
-        
-        return {
-          success: data.success,
-          result: data.result,
-          output: data.output,
-          error: data.error
-        };
-      } else {
-        return {
-          success: false,
-          error: `HTTP ${response.responseCode}: ${response.result}`
-        };
-      }
+      // TODO: 使用 @kit.NetworkKit 的实现
+      // const httpRequest = http.createHttp();
+      // 
+      // const response = await httpRequest.request(
+      //   `${this.customServerUrl}/execute`,
+      //   {
+      //     method: http.RequestMethod.POST,
+      //     header: {
+      //       'Content-Type': 'application/json'
+      //     },
+      //     extraData: JSON.stringify({
+      //       code: request.code,
+      //       timeout: request.timeout || 30000
+      //     }),
+      //     expectDataType: http.HttpDataType.STRING,
+      //     connectTimeout: request.timeout || 30000,
+      //     readTimeout: request.timeout || 30000
+      //   }
+      // );
+      // 
+      // httpRequest.destroy();
+      // 
+      // if (response.responseCode === 200) {
+      //   const data = JSON.parse(response.result as string);
+      //   
+      //   return {
+      //     success: data.success,
+      //     result: data.result,
+      //     output: data.output,
+      //     error: data.error
+      //   };
+      // } else {
+      //   return {
+      //     success: false,
+      //     error: `HTTP ${response.responseCode}: ${response.result}`
+      //   };
+      // }
     } catch (error) {
       Logger.error('Custom server request error', error);
       return {
