@@ -14,6 +14,8 @@ export const DB_VERSION = 1;
 // 计算配置
 export const DEFAULT_PRECISION = 10;
 export const DEFAULT_ANGLE_UNIT = 'degree';
+export const DEFAULT_ZERO_SNAP_THRESHOLD = 1e-12; // 结果显示为0的吸附阈值
+export const DEFAULT_ASYMPTOTE_THRESHOLD = 1e-12; // 渐近点判定阈值（如 tan）
 export const MAX_HISTORY_RECORDS = 1000;
 
 // UI 配置

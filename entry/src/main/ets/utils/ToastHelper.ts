@@ -13,7 +13,7 @@ export class ToastHelper {
    */
   static show(message: string, duration: number = 2000): void {
     try {
-      // 使用 showMessage 替代已弃用的 showToast
+      // 使用 showToast 显示提示信息
       promptAction.showToast({
         message: message,
         duration: duration

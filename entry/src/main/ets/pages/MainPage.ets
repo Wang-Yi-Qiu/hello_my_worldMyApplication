@@ -4,8 +4,8 @@
  */
 import { AppTheme } from '../utils/AppTheme';
 import { Logger } from '../utils/Logger';
-import { ThemeManager } from '../utils/ThemeManager';
 import { CalculatorPage } from './CalculatorPage';
+import { CalculatorSwitcherPage } from './CalculatorSwitcherPage';
 import { HistoryPage } from './HistoryPage';
 import { SettingsPage } from './SettingsPage';
 
@@ -15,16 +15,21 @@ struct MainPage {
   @State currentIndex: number = 0;
   @StorageLink('currentTheme') currentTheme: string = 'light';
   @StorageLink('expressionFromHistory') expressionFromHistory: string = '';
-  private themeManager: ThemeManager = ThemeManager.getInstance();
 
   aboutToAppear() {
     Logger.info('MainPage loaded');
-    // 初始化主题
-    AppStorage.setOrCreate('currentTheme', this.themeManager.getCurrentTheme());
+    // 初始化主题（使用默认值避免崩溃）
+    AppStorage.setOrCreate('currentTheme', 'light');
     // 初始化历史记录回溯功能
     AppStorage.setOrCreate('expressionFromHistory', '');
     // 初始化历史刷新标记
     AppStorage.setOrCreate('needRefreshHistory', false);
+    
+    // 初始化角度单位（默认为角度制）
+    if (!AppStorage.has('angleUnit')) {
+      AppStorage.setOrCreate('angleUnit', 'degree');
+      Logger.info('Initialized angleUnit to degree in MainPage');
+    }
     
     // 监听历史记录回溯，自动切换到计算器
     this.watchHistoryBackNavigation();
@@ -47,6 +52,7 @@ struct MainPage {
       // 内容区域
       Tabs({ index: this.currentIndex }) {
         TabContent() {
+          // 还原为原始计算器界面
           CalculatorPage()
         }
         .tabBar(this.buildTabBarItem('计算器', 0, ''))

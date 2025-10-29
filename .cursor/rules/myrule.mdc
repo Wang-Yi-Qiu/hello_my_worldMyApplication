@@ -4,3 +4,4 @@ alwaysApply: true
 1.在执行任务之前一定需要在@web https://developer.huawei.com/consumer/cn/ 网站弄清楚规则之后再编辑相关代码，保证代码的时效性，和可运行性。
 2.在对科学计算器进行写他的逻辑运算的功能时侯一定需要加入@web https://github.com/josdejong/mathjs结合此网站进行书写。并且借助 WebView 调用 mathjs实现相关的功能。
 3.每当引入一项新技术的时候，都需要在pr文档里边进行更新。
+4.每次进行代码修改的时候尽量保持软件原有的功能，如果必须需要进行修改的时候，你需要对我进行提醒，经过我的同意之后再进行执行。

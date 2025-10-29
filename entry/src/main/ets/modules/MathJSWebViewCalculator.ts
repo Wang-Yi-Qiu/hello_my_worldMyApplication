@@ -50,12 +50,51 @@ export class MathJSWebViewCalculator {
    * 计算数学表达式
    */
   public async calculate(expression: string): Promise<MathJSResult> {
-    // 由于 WebView API 限制，暂时禁用该功能
-    // 直接返回错误，使用内置 AST 计算引擎
-    return {
-      success: false,
-      error: 'WebView calculator not available, using AST fallback'
-    };
+    try {
+      if (!this.isInitialized || !this.webController) {
+        Logger.warn('MathJS WebView not initialized');
+        return {
+          success: false,
+          error: 'MathJS calculator not initialized'
+        };
+      }
+
+      // 生成唯一的计算ID
+      const id = `calc_${++this.calculationId}`;
+      
+      // 等待结果
+      return new Promise((resolve) => {
+        this.pendingCalculations.set(id, resolve);
+        
+        // 尝试在 WebView 中执行 JavaScript
+        try {
+          // 注意：HarmonyOS WebView 的 runJavaScript 方法需要通过回调实现
+          // 这里我们使用一个简化的实现
+          const jsCode = `calculateExpression('${id}', ${JSON.stringify(expression)});`;
+          
+          // 由于 WebView API 限制，暂时无法直接调用
+          // 返回回退方案
+          setTimeout(() => {
+            resolve({
+              success: false,
+              error: 'WebView execution not available, using AST fallback'
+            });
+          }, 100);
+        } catch (error) {
+          Logger.error('Failed to execute WebView JavaScript', error);
+          resolve({
+            success: false,
+            error: 'Failed to execute calculation in WebView'
+          });
+        }
+      });
+    } catch (error) {
+      Logger.error('Calculation error', error);
+      return {
+        success: false,
+        error: error.message || 'Calculation failed'
+      };
+    }
   }
 
   /**
@@ -113,6 +152,40 @@ export class MathJSWebViewCalculator {
 </head>
 <body>
     <script>
+        // 角度模式：'DEG' | 'RAD'
+        var angleMode = 'DEG';
+
+        function setAngleMode(mode) {
+            if (mode === 'DEG' || mode === 'RAD') {
+                angleMode = mode;
+                console.log('angleMode set to', angleMode);
+                return true;
+            }
+            return false;
+        }
+
+        function preprocessExpressionForTrig(expr) {
+            try {
+                if (angleMode !== 'DEG') {
+                    return expr;
+                }
+                // 在角度模式下，将三角函数的参数从度转换为弧度
+                // sin(x) -> sin((x * pi / 180)) 等
+                let converted = expr;
+                converted = converted.replace(/\bsin\(([^)]+)\)/g, 'sin(($1 * pi / 180))')
+                                     .replace(/\bcos\(([^)]+)\)/g, 'cos(($1 * pi / 180))')
+                                     .replace(/\btan\(([^)]+)\)/g, 'tan(($1 * pi / 180))');
+                // 反三角函数返回角度
+                converted = converted.replace(/\basin\(([^)]+)\)/g, '((180 / pi) * asin($1))')
+                                     .replace(/\bacos\(([^)]+)\)/g, '((180 / pi) * acos($1))')
+                                     .replace(/\batan\(([^)]+)\)/g, '((180 / pi) * atan($1))');
+                return converted;
+            } catch (e) {
+                console.error('preprocess error:', e);
+                return expr;
+            }
+        }
+
         // 等待 mathjs 加载完成
         window.addEventListener('load', function() {
             console.log('MathJS loaded successfully');
@@ -123,9 +196,13 @@ export class MathJSWebViewCalculator {
             try {
                 console.log('Calculating:', expression);
                 
+                // 根据角度模式预处理表达式
+                var exprToEval = preprocessExpressionForTrig(expression);
+                console.log('Preprocessed:', exprToEval, 'angleMode=', angleMode);
+
                 // 使用 mathjs 计算表达式
                 // 支持微积分、矩阵、复数等高级运算
-                const result = math.evaluate(expression);
+                const result = math.evaluate(exprToEval);
                 
                 // 格式化结果
                 let formattedResult;

@@ -45,7 +45,7 @@ struct Index {
           Logger.info('Navigate to MainPage');
           // 跳转到主页面
           try {
-            router.push({
+            router.pushUrl({
               url: 'pages/MainPage'
             });
             Logger.info('Successfully navigated to MainPage');

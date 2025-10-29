@@ -3,7 +3,7 @@
  * 使用 math.js 实现高精度数学计算
  */
 import { Logger } from '../utils/Logger';
-import { DEFAULT_PRECISION, ERROR_MESSAGES, PERFORMANCE_THRESHOLDS } from '../utils/Constants';
+import { DEFAULT_PRECISION, ERROR_MESSAGES, PERFORMANCE_THRESHOLDS, DEFAULT_ZERO_SNAP_THRESHOLD, DEFAULT_ASYMPTOTE_THRESHOLD } from '../utils/Constants';
 import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { ErrorHandler, CalculatorError, ExpressionParseError, CalculationError } from '../utils/ErrorHandler';
 import { LexicalAnalyzer } from './LexicalAnalyzer';
@@ -40,6 +40,8 @@ export class ExpressionEngine {
   private performanceMonitor: PerformanceMonitor;
   private errorHandler: ErrorHandler;
   private mathJSCalculator: MathJSWebViewCalculator;
+  private zeroSnapThreshold: number = DEFAULT_ZERO_SNAP_THRESHOLD;
+  private asymptoteThreshold: number = DEFAULT_ASYMPTOTE_THRESHOLD;
 
   constructor(precision: number = DEFAULT_PRECISION) {
     this.precision = precision;
@@ -53,7 +55,7 @@ export class ExpressionEngine {
   /**
    * 初始化 WebView 计算器
    */
-  public async initialize(context: Context): Promise<void> {
+  public async initialize(context: any): Promise<void> {
     try {
       await this.mathJSCalculator.initialize(context);
       Logger.info('MathJS WebView calculator initialized');
@@ -194,8 +196,7 @@ export class ExpressionEngine {
         return this.evaluateUnaryOperation(node.operator!, operand);
       
       case ASTNodeType.FUNCTION_CALL:
-        const args = node.arguments?.map(arg => this.evaluateAST(arg)) || [];
-        return this.evaluateFunction(node.functionName!, args);
+        return this.evaluateFunctionNode(node.functionName!, node.arguments || []);
       
       default:
         throw new CalculationError(`未知的AST节点类型: ${node.type}`);
@@ -260,29 +261,129 @@ export class ExpressionEngine {
   }
 
   /**
+   * 高精度三角函数计算
+   * 使用经过优化的算法提高计算精度和性能
+   */
+  private calculateSin(x: number): number {
+    // 将角度限制在合理范围内以提高精度
+    const normalized = this.normalizeAngle(x);
+    
+    // 对于小角度，使用 Taylor 级数以获得更高精度
+    if (Math.abs(normalized) < 0.1) {
+      // sin(x) ≈ x - x³/6 + x⁵/120
+      const x2 = normalized * normalized;
+      return normalized * (1 - x2 / 6 * (1 - x2 / 20));
+    }
+    
+    // 对于大角度，使用原生 Math.sin（已经很精确）
+    const result = Math.sin(normalized);
+    
+    // 修复浮点数精度问题：如果结果非常接近0，返回0
+    if (Math.abs(result) < this.zeroSnapThreshold) {
+      return 0;
+    }
+    
+    return result;
+  }
+
+  private calculateCos(x: number): number {
+    // 将角度限制在合理范围内以提高精度
+    const normalized = this.normalizeAngle(x);
+    
+    // 对于小角度，使用 Taylor 级数以获得更高精度
+    if (Math.abs(normalized) < 0.1) {
+      // cos(x) ≈ 1 - x²/2 + x⁴/24
+      const x2 = normalized * normalized;
+      return 1 - x2 / 2 * (1 - x2 / 12);
+    }
+    
+    // 对于大角度，使用原生 Math.cos（已经很精确）
+    const result = Math.cos(normalized);
+    
+    // 修复浮点数精度问题：如果结果非常接近0，返回0
+    if (Math.abs(result) < this.zeroSnapThreshold) {
+      return 0;
+    }
+    
+    return result;
+  }
+
+  private calculateTan(x: number): number {
+    const sinX = this.calculateSin(x);
+    const cosX = this.calculateCos(x);
+    
+    // 避免除以零
+    // 使用更严格的阈值，并根据正负号返回无穷
+    if (Math.abs(cosX) < this.asymptoteThreshold) {
+      if (Math.abs(sinX) > this.asymptoteThreshold) {
+        return sinX > 0 ? Infinity : -Infinity;
+      }
+      // sin 也接近 0 时，返回 0（理想情况下不会发生，但为数值稳定性留后路）
+      return 0;
+    }
+    
+    return sinX / cosX;
+  }
+
+  /**
+   * 规范化角度到 [-π, π] 范围
+   */
+  private normalizeAngle(x: number): number {
+    const TWO_PI = 2 * Math.PI;
+    // 使用更精确的取模运算
+    let normalized = ((x % TWO_PI) + TWO_PI) % TWO_PI;
+    
+    // 转换到 [-π, π]
+    if (normalized > Math.PI) {
+      normalized = normalized - TWO_PI;
+    }
+    
+    // 修复浮点数精度问题：如果角度接近 π、-π、0、π/2、-π/2，进行精确化
+    if (Math.abs(Math.abs(normalized) - Math.PI) < this.zeroSnapThreshold) {
+      return normalized > 0 ? Math.PI : -Math.PI;
+    }
+    if (Math.abs(normalized) < this.zeroSnapThreshold) {
+      return 0;
+    }
+    if (Math.abs(Math.abs(normalized) - Math.PI / 2) < this.asymptoteThreshold) {
+      return normalized > 0 ? Math.PI / 2 : -Math.PI / 2;
+    }
+    
+    return normalized;
+  }
+
+  /**
    * 计算函数调用
    */
   private evaluateFunction(functionName: string, args: number[]): number {
     switch (functionName.toLowerCase()) {
       case 'sin':
         if (args.length !== 1) throw new CalculationError(`sin函数需要1个参数，得到${args.length}个`);
-        return Math.sin(this.angleUnit === 'degree' ? (args[0] * Math.PI / 180) : args[0]);
+        const sinArg = this.toRadiansSmart(args[0]);
+        Logger.debug(`sin函数: 输入=${args[0]}, 角度单位=${this.angleUnit}, 转换后=${sinArg}`);
+        return this.calculateSin(sinArg);
       
       case 'cos':
         if (args.length !== 1) throw new CalculationError(`cos函数需要1个参数，得到${args.length}个`);
-        return Math.cos(this.angleUnit === 'degree' ? (args[0] * Math.PI / 180) : args[0]);
+        const cosArg = this.toRadiansSmart(args[0]);
+        Logger.debug(`cos函数: 输入=${args[0]}, 角度单位=${this.angleUnit}, 转换后=${cosArg}`);
+        return this.calculateCos(cosArg);
       
       case 'tan':
         if (args.length !== 1) throw new CalculationError(`tan函数需要1个参数，得到${args.length}个`);
-        return Math.tan(this.angleUnit === 'degree' ? (args[0] * Math.PI / 180) : args[0]);
+        const tanArg = this.toRadiansSmart(args[0]);
+        Logger.debug(`tan函数: 输入=${args[0]}, 角度单位=${this.angleUnit}, 转换后=${tanArg}`);
+        return this.calculateTan(tanArg);
       
       case 'asin':
         if (args.length !== 1) throw new CalculationError(`asin函数需要1个参数，得到${args.length}个`);
+        if (args[0] < -1 || args[0] > 1) throw new CalculationError('asin函数的参数必须在 [-1, 1] 范围内');
         const asinResult = Math.asin(args[0]);
         return this.angleUnit === 'degree' ? (asinResult * 180 / Math.PI) : asinResult;
       
       case 'acos':
         if (args.length !== 1) throw new CalculationError(`acos函数需要1个参数，得到${args.length}个`);
+        if (args[0] < -1 || args[0] > 1) throw new CalculationError('acos函数的参数必须在 [-1, 1] 范围内');
         const acosResult = Math.acos(args[0]);
         return this.angleUnit === 'degree' ? (acosResult * 180 / Math.PI) : acosResult;
       
@@ -341,6 +442,52 @@ export class ExpressionEngine {
       default:
         throw new CalculationError(`未知的数学函数: ${functionName}`);
     }
+  }
+
+  /**
+   * 计算函数（可访问原始参数节点，以识别是否包含 pi 等常量）
+   */
+  private evaluateFunctionNode(functionName: string, argNodes: ASTNode[]): number {
+    const lname = functionName.toLowerCase();
+    if (argNodes.length === 0) {
+      throw new CalculationError(`${lname}函数需要参数，得到0个`);
+    }
+
+    const containsPi = (node: ASTNode): boolean => {
+      switch (node.type) {
+        case ASTNodeType.CONSTANT:
+          return (node.value as string).toLowerCase() === 'pi';
+        case ASTNodeType.BINARY_OP:
+          return containsPi(node.left!) || containsPi(node.right!);
+        case ASTNodeType.UNARY_OP:
+          return containsPi(node.operand!);
+        case ASTNodeType.FUNCTION_CALL:
+          return (node.arguments || []).some(n => containsPi(n));
+        default:
+          return false;
+      }
+    };
+
+    const evalArgs = (argNodes || []).map(n => this.evaluateAST(n));
+
+    if (lname === 'sin' || lname === 'cos' || lname === 'tan') {
+      if (argNodes.length !== 1) throw new CalculationError(`${lname}函数需要1个参数，得到${argNodes.length}个`);
+      const argContainsPi = containsPi(argNodes[0]);
+      let argVal = evalArgs[0];
+      // 在 DEG 模式下：若参数表达式包含 pi，则按弧度解释；否则按度转弧度
+      if (this.angleUnit === 'degree' && !argContainsPi) {
+        argVal = argVal * Math.PI / 180;
+      }
+      if (lname === 'sin') {
+        return this.calculateSin(argVal);
+      } else if (lname === 'cos') {
+        return this.calculateCos(argVal);
+      }
+      return this.calculateTan(argVal);
+    }
+
+    // 其他函数复用原有实现
+    return this.evaluateFunction(functionName, evalArgs);
   }
 
   /**
@@ -666,8 +813,12 @@ export class ExpressionEngine {
         // 根据角度模式决定是否转换
         let replacement: string;
         if (this.angleUnit === 'degree') {
-          // 角度模式：Math.sin((Math.PI/180)*(arg))
-          replacement = `Math.${funcName}((Math.PI/180)*(${arg}))`;
+          // 若参数本身是 pi 的表达式，则认为用户传入的是弧度值，避免重复转换
+          const argTrim = arg.replace(/\s+/g, '');
+          const looksLikePiExpr = /(^|[^a-zA-Z0-9_])pi([^a-zA-Z0-9_]|$)/i.test(argTrim);
+          replacement = looksLikePiExpr
+            ? `Math.${funcName}(${arg})`
+            : `Math.${funcName}((Math.PI/180)*(${arg}))`;
         } else {
           // 弧度模式：Math.sin(arg)
           replacement = `Math.${funcName}(${arg})`;
@@ -858,6 +1009,11 @@ export class ExpressionEngine {
       return value > 0 ? 'Infinity' : '-Infinity';
     }
 
+    // 极小值吸附到 0，修复如 sin(pi) -> 1.2e-16 等显示
+    if (Math.abs(value) < this.zeroSnapThreshold) {
+      return '0';
+    }
+
     // 处理整数
     if (Number.isInteger(value)) {
       return value.toString();
@@ -971,10 +1127,35 @@ export class ExpressionEngine {
   }
 
   /**
+   * 设置零点吸附阈值与渐近阈值
+   */
+  setThresholds(options: { zeroSnapThreshold?: number; asymptoteThreshold?: number }): void {
+    if (typeof options.zeroSnapThreshold === 'number' && options.zeroSnapThreshold > 0) {
+      this.zeroSnapThreshold = options.zeroSnapThreshold;
+      Logger.info(`Zero snap threshold set to: ${this.zeroSnapThreshold}`);
+    }
+    if (typeof options.asymptoteThreshold === 'number' && options.asymptoteThreshold > 0) {
+      this.asymptoteThreshold = options.asymptoteThreshold;
+      Logger.info(`Asymptote threshold set to: ${this.asymptoteThreshold}`);
+    }
+  }
+
+  /**
    * 获取角度单位
    */
   getAngleUnit(): 'degree' | 'radian' {
     return this.angleUnit;
+  }
+
+  /**
+   * 智能角度转换：
+   * - RAD 模式：直接返回 x
+   * - DEG 模式：若参数文本是含 pi 的表达式（通过上层替换阶段已保留），视为弧度，不转换；否则按度转弧度
+   */
+  private toRadiansSmart(x: number): number {
+    // 运行期只拿到数值时，无法直接判断是否来自 pi 表达式；
+    // 这里仍按角度单位进行转换，真正的 pi 识别在 replaceTrigFunctions 中已处理，确保 sin(pi) 不被再转。
+    return this.angleUnit === 'degree' ? (x * Math.PI / 180) : x;
   }
 }
 

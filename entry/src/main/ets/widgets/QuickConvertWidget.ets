@@ -38,7 +38,7 @@ struct QuickConvertWidget {
   
   createDefaultConfigs() {
     this.convertConfigs = [
-      // 货币转换
+      // 货币转换 - 只保留国际常用
       {
         id: 'usd_to_cny',
         fromUnit: 'USD',
@@ -57,31 +57,13 @@ struct QuickConvertWidget {
         category: 'currency',
         isEnabled: true
       },
-      {
-        id: 'usd_to_eur',
-        fromUnit: 'USD',
-        toUnit: 'EUR',
-        rate: 0.92,
-        type: ConvertType.CURRENCY,
-        category: 'currency',
-        isEnabled: true
-      },
-      {
-        id: 'cny_to_eur',
-        fromUnit: 'CNY',
-        toUnit: 'EUR',
-        rate: 0.13,
-        type: ConvertType.CURRENCY,
-        category: 'currency',
-        isEnabled: true
-      },
       
-      // 长度转换
+      // 长度转换 - 只保留常用单位
       {
-        id: 'm_to_ft',
+        id: 'm_to_cm',
         fromUnit: 'm',
-        toUnit: 'ft',
-        rate: 3.28084,
+        toUnit: 'cm',
+        rate: 100,
         type: ConvertType.LENGTH,
         category: 'length',
         isEnabled: true
@@ -96,67 +78,47 @@ struct QuickConvertWidget {
         isEnabled: true
       },
       {
-        id: 'km_to_mi',
-        fromUnit: 'km',
-        toUnit: 'mi',
-        rate: 0.621371,
-        type: ConvertType.LENGTH,
-        category: 'length',
-        isEnabled: true
-      },
-      {
-        id: 'cm_to_in',
+        id: 'cm_to_inch',
         fromUnit: 'cm',
-        toUnit: 'in',
+        toUnit: 'inch',
         rate: 0.393701,
         type: ConvertType.LENGTH,
         category: 'length',
         isEnabled: true
       },
-      
-      // 重量转换
       {
-        id: 'kg_to_lb',
-        fromUnit: 'kg',
-        toUnit: 'lb',
-        rate: 2.20462,
-        type: ConvertType.WEIGHT,
-        category: 'weight',
+        id: 'inch_to_cm',
+        fromUnit: 'inch',
+        toUnit: 'cm',
+        rate: 2.54,
+        type: ConvertType.LENGTH,
+        category: 'length',
         isEnabled: true
       },
       {
-        id: 'kg_to_g',
-        fromUnit: 'kg',
-        toUnit: 'g',
-        rate: 1000,
-        type: ConvertType.WEIGHT,
-        category: 'weight',
+        id: 'm_to_foot',
+        fromUnit: 'm',
+        toUnit: 'foot',
+        rate: 3.28084,
+        type: ConvertType.LENGTH,
+        category: 'length',
         isEnabled: true
       },
       {
-        id: 'lb_to_oz',
-        fromUnit: 'lb',
-        toUnit: 'oz',
-        rate: 16,
-        type: ConvertType.WEIGHT,
-        category: 'weight',
-        isEnabled: true
-      },
-      {
-        id: 'g_to_oz',
-        fromUnit: 'g',
-        toUnit: 'oz',
-        rate: 0.035274,
-        type: ConvertType.WEIGHT,
-        category: 'weight',
+        id: 'foot_to_m',
+        fromUnit: 'foot',
+        toUnit: 'm',
+        rate: 0.3048,
+        type: ConvertType.LENGTH,
+        category: 'length',
         isEnabled: true
       },
       
       // 温度转换
       {
         id: 'c_to_f',
-        fromUnit: '°C',
-        toUnit: '°F',
+        fromUnit: '℃',
+        toUnit: '℉',
         rate: 1.8,
         offset: 32,
         type: ConvertType.TEMPERATURE,
@@ -165,8 +127,8 @@ struct QuickConvertWidget {
       },
       {
         id: 'f_to_c',
-        fromUnit: '°F',
-        toUnit: '°C',
+        fromUnit: '℉',
+        toUnit: '℃',
         rate: 0.555556,
         offset: -32,
         type: ConvertType.TEMPERATURE,
@@ -176,8 +138,35 @@ struct QuickConvertWidget {
       
       // 时间转换
       {
-        id: 'hr_to_min',
-        fromUnit: 'hr',
+        id: 's_to_min',
+        fromUnit: 's',
+        toUnit: 'min',
+        rate: 0.0166667,
+        type: ConvertType.TIME,
+        category: 'time',
+        isEnabled: true
+      },
+      {
+        id: 'min_to_s',
+        fromUnit: 'min',
+        toUnit: 's',
+        rate: 60,
+        type: ConvertType.TIME,
+        category: 'time',
+        isEnabled: true
+      },
+      {
+        id: 'min_to_h',
+        fromUnit: 'min',
+        toUnit: 'h',
+        rate: 0.0166667,
+        type: ConvertType.TIME,
+        category: 'time',
+        isEnabled: true
+      },
+      {
+        id: 'h_to_min',
+        fromUnit: 'h',
         toUnit: 'min',
         rate: 60,
         type: ConvertType.TIME,
@@ -185,28 +174,19 @@ struct QuickConvertWidget {
         isEnabled: true
       },
       {
-        id: 'min_to_sec',
-        fromUnit: 'min',
-        toUnit: 'sec',
-        rate: 60,
+        id: 's_to_h',
+        fromUnit: 's',
+        toUnit: 'h',
+        rate: 0.000277778,
         type: ConvertType.TIME,
         category: 'time',
         isEnabled: true
       },
       {
-        id: 'day_to_hr',
-        fromUnit: 'day',
-        toUnit: 'hr',
-        rate: 24,
-        type: ConvertType.TIME,
-        category: 'time',
-        isEnabled: true
-      },
-      {
-        id: 'week_to_day',
-        fromUnit: 'week',
-        toUnit: 'day',
-        rate: 7,
+        id: 'h_to_s',
+        fromUnit: 'h',
+        toUnit: 's',
+        rate: 3600,
         type: ConvertType.TIME,
         category: 'time',
         isEnabled: true
@@ -214,10 +194,19 @@ struct QuickConvertWidget {
       
       // 面积转换
       {
-        id: 'm2_to_ft2',
+        id: 'm2_to_cm2',
         fromUnit: 'm²',
-        toUnit: 'ft²',
-        rate: 10.7639,
+        toUnit: 'cm²',
+        rate: 10000,
+        type: ConvertType.AREA,
+        category: 'area',
+        isEnabled: true
+      },
+      {
+        id: 'cm2_to_m2',
+        fromUnit: 'cm²',
+        toUnit: 'm²',
+        rate: 0.0001,
         type: ConvertType.AREA,
         category: 'area',
         isEnabled: true
@@ -232,19 +221,10 @@ struct QuickConvertWidget {
         isEnabled: true
       },
       {
-        id: 'km2_to_mi2',
+        id: 'km2_to_m2',
         fromUnit: 'km²',
-        toUnit: 'mi²',
-        rate: 0.386102,
-        type: ConvertType.AREA,
-        category: 'area',
-        isEnabled: true
-      },
-      {
-        id: 'ha_to_acre',
-        fromUnit: 'ha',
-        toUnit: 'acre',
-        rate: 2.47105,
+        toUnit: 'm²',
+        rate: 1000000,
         type: ConvertType.AREA,
         category: 'area',
         isEnabled: true
@@ -252,10 +232,10 @@ struct QuickConvertWidget {
       
       // 体积转换
       {
-        id: 'm3_to_ft3',
-        fromUnit: 'm³',
-        toUnit: 'ft³',
-        rate: 35.3147,
+        id: 'l_to_m3',
+        fromUnit: 'L',
+        toUnit: 'm³',
+        rate: 0.001,
         type: ConvertType.VOLUME,
         category: 'volume',
         isEnabled: true
@@ -270,19 +250,37 @@ struct QuickConvertWidget {
         isEnabled: true
       },
       {
-        id: 'l_to_ml',
+        id: 'l_to_cm3',
         fromUnit: 'L',
-        toUnit: 'mL',
+        toUnit: 'cm³',
         rate: 1000,
         type: ConvertType.VOLUME,
         category: 'volume',
         isEnabled: true
       },
       {
-        id: 'gal_to_l',
-        fromUnit: 'gal',
+        id: 'cm3_to_l',
+        fromUnit: 'cm³',
         toUnit: 'L',
-        rate: 3.78541,
+        rate: 0.001,
+        type: ConvertType.VOLUME,
+        category: 'volume',
+        isEnabled: true
+      },
+      {
+        id: 'm3_to_cm3',
+        fromUnit: 'm³',
+        toUnit: 'cm³',
+        rate: 1000000,
+        type: ConvertType.VOLUME,
+        category: 'volume',
+        isEnabled: true
+      },
+      {
+        id: 'cm3_to_m3',
+        fromUnit: 'cm³',
+        toUnit: 'm³',
+        rate: 0.000001,
         type: ConvertType.VOLUME,
         category: 'volume',
         isEnabled: true
@@ -422,7 +420,7 @@ struct QuickConvertWidget {
         .fontColor('#333333')
         .margin({ bottom: 8 })
       
-      // 转换类型选择（Flex布局）
+      // 转换类型选择（Flex布局）- 移除重量
       Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
         Button('货币')
           .fontSize(11)
@@ -440,15 +438,6 @@ struct QuickConvertWidget {
           .fontColor(this.convertType === ConvertType.LENGTH ? '#FFFFFF' : '#333333')
           .borderRadius(12)
           .onClick(() => this.onConvertTypeChange(ConvertType.LENGTH))
-          .margin({ right: 6, bottom: 6 })
-        
-        Button('重量')
-          .fontSize(11)
-          .padding({ left: 8, right: 8, top: 6, bottom: 6 })
-          .backgroundColor(this.convertType === ConvertType.WEIGHT ? '#007DFF' : '#F0F0F0')
-          .fontColor(this.convertType === ConvertType.WEIGHT ? '#FFFFFF' : '#333333')
-          .borderRadius(12)
-          .onClick(() => this.onConvertTypeChange(ConvertType.WEIGHT))
           .margin({ right: 6, bottom: 6 })
         
         Button('温度')
@@ -493,7 +482,7 @@ struct QuickConvertWidget {
       // 单位选择矩阵
       this.buildUnitMatrix()
       
-      // 输入区域
+      // 输入区域和结果显示
       Column() {
         Row() {
           Column() {
@@ -529,33 +518,12 @@ struct QuickConvertWidget {
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceBetween)
-        .padding({ top: 8, bottom: 8 })
-        
-        // 迷你数字键盘
-        Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center, justifyContent: FlexAlign.Center }) {
-          ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, '⌫'], (item: number | string) => {
-            Button(item.toString())
-              .fontSize(12)
-              .width(24)
-              .height(24)
-              .backgroundColor('#F5F5F5')
-              .fontColor('#333333')
-              .borderRadius(4)
-              .onClick(() => {
-                if (typeof item === 'number') {
-                  this.appendNumber(item.toString());
-                } else if (item === 'C') {
-                  this.clearInput();
-                } else if (item === '⌫') {
-                  this.backspace();
-                }
-              })
-              .margin(2)
-          })
-        }
-        .margin({ top: 4 })
-        .width('100%')
+        .padding({ top: 8, bottom: 12 })
       }
+      .width('100%')
+      
+      // 固定底部的数字键盘
+      this.buildKeypad()
     }
     .width('100%')
     .height('100%')
@@ -607,5 +575,69 @@ struct QuickConvertWidget {
   getAvailableUnits(): string[] {
     const typeConfigs = this.convertConfigs.filter(c => c.type === this.convertType);
     return Array.from(new Set(typeConfigs.map(c => c.fromUnit)));
+  }
+
+  /**
+   * 构建底部数字键盘
+   */
+  @Builder buildKeypad() {
+    Column() {
+      // 第一行：7 8 9 C
+      Row() {
+        this.keypadButton('7')
+        this.keypadButton('8')
+        this.keypadButton('9')
+        this.keypadButton('C')
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
+      .margin({ bottom: 6 })
+
+      // 第二行：4 5 6 ⌫
+      Row() {
+        this.keypadButton('4')
+        this.keypadButton('5')
+        this.keypadButton('6')
+        this.keypadButton('⌫')
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
+      .margin({ bottom: 6 })
+
+      // 第三行：1 2 3 0
+      Row() {
+        this.keypadButton('1')
+        this.keypadButton('2')
+        this.keypadButton('3')
+        this.keypadButton('0')
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
+    }
+    .margin({ top: 8 })
+  }
+
+  /**
+   * 单个键盘按钮
+   */
+  @Builder keypadButton(text: string) {
+    Button(text)
+      .fontSize(14)
+      .width('23%')
+      .height(40)
+      .borderRadius(10)
+      .backgroundColor('#F5F5F5')
+      .fontColor('#333333')
+      .onClick(() => {
+        if (text === 'C') {
+          this.clearInput();
+          return;
+        }
+        if (text === '⌫') {
+          this.backspace();
+          return;
+        }
+        this.appendNumber(text);
+      })
   }
 }
